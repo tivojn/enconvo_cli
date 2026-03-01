@@ -6,6 +6,8 @@ import { registerConfigCommands } from './commands/config/index';
 import { registerMessageCommands } from './commands/message/index';
 import { registerStatusCommand } from './commands/status';
 import { registerDoctorCommand } from './commands/doctor';
+import { registerHealthCommand } from './commands/health';
+import { registerSessionsCommand } from './commands/sessions';
 
 const program = new Command();
 
@@ -20,5 +22,7 @@ registerConfigCommands(program);
 registerMessageCommands(program);
 registerStatusCommand(program);
 registerDoctorCommand(program);
+registerHealthCommand(program);
+registerSessionsCommand(program);
 
 program.parse();

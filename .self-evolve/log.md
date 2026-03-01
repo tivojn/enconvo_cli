@@ -66,3 +66,12 @@
   - Fixed 7 unused import/variable warnings across codebase
   - Added `npm run lint` and `npm run lint:fix` scripts
   - Zero ESLint errors/warnings on clean run
+
+## [2026-03-02 06:51] Self-Evolve Round 8: health, sessions commands + store tests
+- **Status:** success
+- **Tests:** 76/76 passing (8 suites, +4 store tests)
+- **Notes:**
+  - Added `enconvo health` command (API connectivity + latency)
+  - Added `enconvo sessions` command (list all channel sessions)
+  - Added config store test suite (v2 schema, channel instances, groups)
+  - CLI now has 8 top-level commands + 2 command groups
