@@ -198,3 +198,11 @@
   - Import supports `--merge` (add without overwriting) and `--dry-run` (preview)
   - Auto-backup before import to `~/.enconvo_cli/backups/`
   - CLI now has 13 top-level commands + 4 command groups
+
+## [2026-03-02 07:32] Self-Evolve Round 21: version command + export/import tests
+- **Status:** success
+- **Tests:** 193/193 passing (18 suites, +4 new tests)
+- **Notes:**
+  - Added `enconvo version` command (CLI version, EnConvo app version, Node, platform)
+  - Added export/import integration tests (4 tests: export bundle, strip-tokens, replace import, merge import)
+  - CLI now has 14 top-level commands + 4 command groups

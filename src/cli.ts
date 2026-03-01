@@ -12,6 +12,7 @@ import { registerLogsCommand } from './commands/logs';
 import { registerInfoCommand } from './commands/info';
 import { registerConfigureCommand } from './commands/configure';
 import { registerExportCommand, registerImportCommand } from './commands/export-import';
+import { registerVersionCommand } from './commands/version';
 
 const program = new Command();
 
@@ -33,5 +34,6 @@ registerInfoCommand(program);
 registerConfigureCommand(program);
 registerExportCommand(program);
 registerImportCommand(program);
+registerVersionCommand(program);
 
 program.parse();

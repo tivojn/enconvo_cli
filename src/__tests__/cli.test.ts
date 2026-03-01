@@ -12,6 +12,7 @@ import { registerLogsCommand } from '../commands/logs';
 import { registerInfoCommand } from '../commands/info';
 import { registerConfigureCommand } from '../commands/configure';
 import { registerExportCommand, registerImportCommand } from '../commands/export-import';
+import { registerVersionCommand } from '../commands/version';
 
 function getCommandNames(program: Command): string[] {
   return program.commands.map((c) => c.name());
@@ -43,21 +44,17 @@ describe('CLI command registration', () => {
     registerConfigureCommand(program);
     registerExportCommand(program);
     registerImportCommand(program);
+    registerVersionCommand(program);
 
     const names = getCommandNames(program);
-    expect(names).toContain('channels');
-    expect(names).toContain('agents');
-    expect(names).toContain('config');
-    expect(names).toContain('message');
-    expect(names).toContain('status');
-    expect(names).toContain('doctor');
-    expect(names).toContain('health');
-    expect(names).toContain('sessions');
-    expect(names).toContain('logs');
-    expect(names).toContain('info');
-    expect(names).toContain('configure');
-    expect(names).toContain('export');
-    expect(names).toContain('import');
+    const expected = [
+      'channels', 'agents', 'config', 'message',
+      'status', 'doctor', 'health', 'sessions',
+      'logs', 'info', 'configure', 'export', 'import', 'version',
+    ];
+    for (const cmd of expected) {
+      expect(names).toContain(cmd);
+    }
   });
 
   it('registers all channels subcommands', () => {
