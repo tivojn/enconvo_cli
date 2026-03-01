@@ -1,9 +1,8 @@
 import { Context, NextFunction } from 'grammy';
-import { config } from '../config';
 
 export function createAuthMiddleware(pinnedAllowedUserIds?: number[]) {
   return async function authMiddleware(ctx: Context, next: NextFunction): Promise<void> {
-    const allowedIds = pinnedAllowedUserIds ?? config.telegram.allowedUserIds;
+    const allowedIds = pinnedAllowedUserIds ?? [];
 
     // Empty list = open mode (anyone can use)
     if (allowedIds.length === 0) {
@@ -19,5 +18,5 @@ export function createAuthMiddleware(pinnedAllowedUserIds?: number[]) {
   };
 }
 
-// Legacy export for npm run dev path
+// Legacy export — open mode (no filtering)
 export const authMiddleware = createAuthMiddleware();

@@ -7,19 +7,12 @@ import { parseResponse } from '../../../services/response-parser';
 import { getSessionId, getAgent } from '../../../services/session-manager';
 import { splitMessage } from '../utils/message-splitter';
 import { startTypingIndicator } from '../middleware/typing';
-
-const MEDIA_DIR = '/tmp/enconvo-telegram-media';
-
-function ensureMediaDir(): void {
-  if (!fs.existsSync(MEDIA_DIR)) {
-    fs.mkdirSync(MEDIA_DIR, { recursive: true });
-  }
-}
+import { ensureMediaDir } from '../../../utils/media-dir';
 
 async function downloadFile(ctx: Context, fileId: string, extension: string): Promise<string> {
-  ensureMediaDir();
+  const mediaDir = ensureMediaDir('telegram');
   const file = await ctx.api.getFile(fileId);
-  const filePath = path.join(MEDIA_DIR, `${file.file_unique_id}${extension}`);
+  const filePath = path.join(mediaDir, `${file.file_unique_id}${extension}`);
 
   const url = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
   const res = await fetch(url);

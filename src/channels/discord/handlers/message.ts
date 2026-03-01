@@ -1,4 +1,4 @@
-import { Client, Message } from 'discord.js';
+import { Client, Message, TextChannel } from 'discord.js';
 import * as fs from 'fs';
 import { callEnConvo } from '../../../services/enconvo-client';
 import { parseResponse } from '../../../services/response-parser';
@@ -51,7 +51,7 @@ export function createTextMessageHandler(client: Client, agentPath?: string, ins
 
     const sessionId = getSessionId(channelId, instanceId);
     const globalConfig = loadGlobalConfig();
-    const typing = startTypingIndicator(message.channel as any);
+    const typing = startTypingIndicator(message.channel as TextChannel);
 
     try {
       const response = await callEnConvo(text, sessionId, agentPath ?? 'chat_with_ai/chat', {

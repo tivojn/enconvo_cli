@@ -1,4 +1,4 @@
-import { Client, Message } from 'discord.js';
+import { Client, Message, TextChannel } from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { callEnConvo } from '../../../services/enconvo-client';
@@ -8,18 +8,11 @@ import { splitMessage } from '../utils/message-splitter';
 import { sendFile } from '../utils/file-sender';
 import { startTypingIndicator } from '../middleware/typing';
 import { getSessionId } from './commands';
-
-const MEDIA_DIR = '/tmp/enconvo-discord-media';
-
-function ensureMediaDir(): void {
-  if (!fs.existsSync(MEDIA_DIR)) {
-    fs.mkdirSync(MEDIA_DIR, { recursive: true });
-  }
-}
+import { ensureMediaDir } from '../../../utils/media-dir';
 
 async function downloadAttachment(url: string, filename: string): Promise<string> {
-  ensureMediaDir();
-  const filePath = path.join(MEDIA_DIR, `${Date.now()}-${filename}`);
+  const mediaDir = ensureMediaDir('discord');
+  const filePath = path.join(mediaDir, `${Date.now()}-${filename}`);
   const res = await fetch(url);
   const buffer = Buffer.from(await res.arrayBuffer());
   fs.writeFileSync(filePath, buffer);
@@ -31,7 +24,7 @@ export function createMediaHandler(client: Client, agentPath?: string, instanceI
     const channelId = message.channel.id;
     const caption = message.content || 'User sent a file';
 
-    const typing = startTypingIndicator(message.channel as any);
+    const typing = startTypingIndicator(message.channel as TextChannel);
 
     try {
       // Download all attachments

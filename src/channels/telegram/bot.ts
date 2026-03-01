@@ -1,5 +1,4 @@
 import { Bot } from 'grammy';
-import { config } from './config';
 import { authMiddleware, createAuthMiddleware } from './middleware/auth';
 import { createMentionGate } from './middleware/mention-gate';
 import { registerCommands } from './handlers/commands';
@@ -9,13 +8,16 @@ import { handlePhoto, handleDocument, createPhotoHandler, createDocumentHandler 
 /**
  * Create a Grammy bot instance.
  *
- * - With no args: legacy mode (uses config.ts, session-manager for multi-agent switching)
  * - With token + agentPath: pinned mode (one bot, one agent, no switching)
+ * - With token only: legacy mode (multi-agent switching via session-manager)
  *
  * instanceId is used to namespace sessions per bot in group chats.
  */
 export function createBot(token?: string, agentPath?: string, allowedUserIds?: number[], instanceId?: string): Bot {
-  const botToken = token ?? config.botToken;
+  const botToken = token ?? process.env.BOT_TOKEN;
+  if (!botToken) {
+    throw new Error('Bot token is required — provide via parameter or BOT_TOKEN env var');
+  }
   const bot = new Bot(botToken);
 
   if (agentPath) {

@@ -121,3 +121,14 @@
   - Enhanced `enconvo doctor` with duplicate agent detection across instances
   - Expanded agent-store tests: channelBindings array, bind/unbind data logic, update logic
   - Expanded CLI test: validates ALL 11 channels + 10 agents subcommands by name and count
+
+## [2026-03-02 07:11] Self-Evolve Round 14: Code quality — dead code removal, type safety, dedup
+- **Status:** success
+- **Tests:** 131/131 passing (14 suites, +6 new tests)
+- **Notes:**
+  - Removed dead `src/channels/telegram/config.ts` — no longer imported anywhere
+  - Fixed `process.exit(1)` in library code: `bot.ts` now throws error, `auth.ts` defaults to open mode
+  - Extracted shared `src/utils/media-dir.ts` (ensureMediaDir, getMediaDir) from duplicated telegram/discord code
+  - Fixed 3 `as any` type casts: doctor.ts and discord handlers now use proper types (TextChannel)
+  - Added media-dir test suite (6 tests)
+  - Enhanced doctor with duplicate agent detection across instances

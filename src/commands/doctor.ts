@@ -47,7 +47,7 @@ export function registerDoctorCommand(program: Command): void {
 
       if (config) {
         // Check config version
-        if ((config as any).version < 2) {
+        if (config.version < 2) {
           issues.push({ level: 'warn', message: 'Config using legacy v1 format — auto-migration will run on next save' });
         }
 
