@@ -75,3 +75,14 @@
   - Added `enconvo sessions` command (list all channel sessions)
   - Added config store test suite (v2 schema, channel instances, groups)
   - CLI now has 8 top-level commands + 2 command groups
+
+## [2026-03-02 06:55] Self-Evolve Round 9: Workspace + session-manager tests + skill meta-evolve
+- **Status:** success
+- **Tests:** 91/91 passing (10 suites, +15 new tests)
+- **Notes:**
+  - Added workspace.test.ts (8 tests: dir creation, identity/soul/agents generation, Chinese name, portraits)
+  - Added session-manager.test.ts (7 tests: sessionId, reset, instanceId isolation)
+  - Meta-evolved general-self-evolve skill to v1.2.0:
+    - Phase 6: "Keep Going" autonomous mode with round structure
+    - Phase 7: Parity Analysis for CLI mirroring
+    - Learned Patterns section (git push gotchas, vitest, code dedup, CLI command patterns)
