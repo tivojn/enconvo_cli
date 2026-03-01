@@ -99,11 +99,13 @@ This means the agent list is dynamic and user-defined — not hardcoded.
 
 ---
 
-## EnConvo API Integration
+## EnConvo Platform Integration
+
+### API Server
 
 - **Base URL:** `http://localhost:54535`
-- **Endpoint pattern:** `POST /command/call/{category}/{command}`
-- **Deep link mapping:** `enconvo://{category}/{command}` → `/command/call/{category}/{command}`
+- **Endpoint pattern:** `POST /command/call/{extensionName}/{commandName}`
+- **Deep link mapping:** `enconvo://{extensionName}/{commandName}` → `/command/call/{extensionName}/{commandName}`
 - **Request body:** `{ "input_text": "...", "sessionId": "..." }`
 - **Response formats:**
   - Standard: `{ "type": "messages", "messages": [{ "role": "assistant", "content": [{ "type": "text", "text": "..." }] }] }`
@@ -111,6 +113,103 @@ This means the agent list is dynamic and user-defined — not hardcoded.
   - Flow steps: content items with `type: "flow_step"`, `flowParams` containing file paths or Deliverable objects
 - **File delivery:** Response parser extracts absolute file paths from text content, `flow_step` params, and `Deliverable` objects. Files are sent as Telegram photos (images) or documents (everything else).
 - **Terminology:** EnConvo calls its agents "commands", "bots", or "actions"
+
+### Command Registry (Agent Discovery)
+
+**This is how `enconvo_cli` discovers all available agents.** No API enumeration endpoint needed — the full registry lives on disk.
+
+**Reference:** The `enconvo-agent-cli` skill (`~/.claude/skills/enconvo-agent-cli/SKILL.md`) documents the complete registry structure, all 26 command types, preference schemas, LLM routing, tool assignment, and curl patterns.
+
+#### File System Layout
+
+```
+~/.config/enconvo/
+├── installed_commands/          # 1,107 command definitions (read-only registry)
+│   └── {extensionName}|{commandName}.json
+├── installed_preferences/       # 353 user config overrides (read-write)
+│   └── {extensionName}|{commandName}.json
+├── installed_extensions/        # 108 extension manifests
+├── dropdown_list_cache/llm/     # Cached model lists (anthropic, openai, google, ollama)
+└── extension/                   # Extension runtime code (JS bundles)
+```
+
+#### Key Command Types for `enconvo_cli`
+
+| Type | What It Is | How CLI Uses It |
+|---|---|---|
+| `agent` | AI agent with tools | Deploy as a dedicated bot on a channel |
+| `bot` | AI chatbot | Deploy as a dedicated bot on a channel |
+| `tool` | Callable tool (for AI agents) | Assign to agents via preferences |
+| `workflow` | Multi-step workflow | Deploy as a bot or invoke via CLI |
+| `command` | General command | Invoke directly or wrap in a bot |
+
+#### Reading the Registry
+
+```bash
+# List all agents and bots (the ones deployable to channels)
+grep -l '"commandType":"agent"\|"commandType":"bot"' ~/.config/enconvo/installed_commands/*.json
+
+# Get command details (title, type, path for curl)
+python3 -c "
+import json
+d = json.load(open('$HOME/.config/enconvo/installed_commands/chat_with_ai|chat.json'))
+print(f'Title: {d[\"title\"]}')
+print(f'Type:  {d[\"commandType\"]}')
+print(f'Key:   {d[\"commandKey\"]}')
+print(f'Curl:  POST http://localhost:54535/command/call/{d[\"commandKey\"].replace(\"|\", \"/\")}')
+"
+
+# Search commands by keyword
+python3 -c "
+import json, glob, sys
+q = sys.argv[1].lower()
+for f in sorted(glob.glob('$HOME/.config/enconvo/installed_commands/*.json')):
+    d = json.load(open(f))
+    if q in d.get('title','').lower() or q in d.get('description','').lower():
+        print(f'{d[\"commandKey\"]:50s} [{d.get(\"commandType\",\"?\"):10s}] {d.get(\"title\",\"\")}')
+" "translate"
+```
+
+#### Key Insight: commandKey → curl → channel bot
+
+Every EnConvo command has a `commandKey` like `chat_with_ai|chat` or `custom_bot|YJBEY3qHhFslKkMd6WIT`. This maps directly to:
+
+- **Deep link:** `enconvo://chat_with_ai/chat` (replace `|` with `/`)
+- **API call:** `POST http://localhost:54535/command/call/chat_with_ai/chat`
+- **Channel bot:** `enconvo channels add --channel telegram --name mavis --agent chat_with_ai/chat --token <token>`
+
+This chain — registry → curl pattern → channel deployment — is the core of `enconvo_cli`.
+
+#### Configuring Agents (Preferences)
+
+Each command's preferences live in `installed_preferences/{extensionName}|{commandName}.json` and control:
+
+- **LLM routing:** Which model/provider the agent uses (`llm.commandKey`, e.g., `llm|chat_anthropic`)
+- **Tool assignment:** Which tools the agent can call (`tools` JSON array)
+- **System prompt:** Custom instructions (`prompt` field, supports Jinja2 templates)
+- **Features:** Web search, image generation, execute permissions
+
+Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand what each agent can do, and can also modify them programmatically.
+
+#### Known Bots (Current)
+
+| Bot | commandKey | curl Path |
+|---|---|---|
+| Mavis (default) | `chat_with_ai\|chat` | `/command/call/chat_with_ai/chat` |
+| OpenClaw Assistant | `openclaw\|OpenClaw` | `/command/call/openclaw/OpenClaw` |
+| Translator | `translate\|translate` | `/command/call/translate/translate` |
+| Elena Content Dept | `custom_bot\|YJBEY3qHhFslKkMd6WIT` | `/command/call/custom_bot/YJBEY3qHhFslKkMd6WIT` |
+| Vivienne Finance Dept | `custom_bot\|BVxrKvityKoIpdJjS4p7` | `/command/call/custom_bot/BVxrKvityKoIpdJjS4p7` |
+
+#### LLM Providers Available
+
+| Provider | Key | Example Models |
+|---|---|---|
+| Anthropic | `llm\|chat_anthropic` | claude-opus-4-6, claude-sonnet-4-6 |
+| OpenAI | `llm\|chat_open_ai` | gpt-5.2 |
+| Google | `llm\|chat_google` | gemini-3-pro-preview |
+| Enconvo AI | `llm\|enconvo_ai` | openai/gpt-5-mini |
+| Ollama | `llm\|chat_ollama` | minimax-m2.5:cloud |
 
 ---
 
@@ -255,9 +354,11 @@ scripts/
 - Each instance has its own token, agent mapping, and service config
 
 ### Near-Term: Agent Management
-- `enconvo agents list` — enumerate available EnConvo agents
-- Ideally query EnConvo's API for dynamic agent discovery
-- Fallback: manual config in `~/.enconvo_cli/config.json`
+- `enconvo agents list` — read `~/.config/enconvo/installed_commands/` to enumerate all agents/bots
+- `enconvo agents inspect --agent chat_with_ai/chat` — show command details, LLM, tools, prompt
+- `enconvo agents configure` — modify LLM routing, tool assignment, system prompt
+- **No API needed** — the full command registry lives on disk at `~/.config/enconvo/installed_commands/` (1,107 commands, read-only) with user preferences in `installed_preferences/` (read-write)
+- Reference: `enconvo-agent-cli` skill documents the complete registry schema
 
 ### Medium-Term: Agent Groups
 - Create Telegram groups as team compositions
@@ -278,7 +379,7 @@ scripts/
 
 ## Known Limitations
 
-- **No agent discovery API** — Agents are manually configured. Waiting for EnConvo to expose an enumeration endpoint.
+- **Agent discovery not yet wired into CLI** — The command registry at `~/.config/enconvo/installed_commands/` has all 1,107 commands on disk. `enconvo agents list` needs to be built to read it. (See `enconvo-agent-cli` skill for schema.)
 - **Single-instance channels** — Currently one Telegram bot per channel type. Multi-instance support needed for one-bot-per-agent model.
 - **In-memory state** — Agent selection and session overrides live in JS Maps. Lost on restart.
 - **No retry on Telegram 409** — Polling instance collisions crash; launchd restarts.
