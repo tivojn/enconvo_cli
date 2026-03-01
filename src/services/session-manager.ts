@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { config, AgentConfig } from '../channels/telegram/config';
+import { loadGlobalConfig, AgentConfig } from '../config/store';
 
 // Key is "chatId:instanceId" to isolate sessions per bot per chat
 const sessionOverrides = new Map<string, string>();
@@ -24,11 +24,13 @@ export function resetSession(chatId: number, instanceId?: string): string {
 }
 
 export function getAgent(chatId: number): AgentConfig {
+  const config = loadGlobalConfig();
   const agentId = agentOverrides.get(chatId) ?? config.enconvo.defaultAgent;
   return config.enconvo.agents.find(a => a.id === agentId) ?? config.enconvo.agents[0];
 }
 
 export function setAgent(chatId: number, agentId: string): AgentConfig | null {
+  const config = loadGlobalConfig();
   const agent = config.enconvo.agents.find(a => a.id === agentId);
   if (!agent) return null;
   agentOverrides.set(chatId, agentId);

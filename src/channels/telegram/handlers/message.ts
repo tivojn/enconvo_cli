@@ -4,10 +4,19 @@ import * as fs from 'fs';
 import { callEnConvo } from '../../../services/enconvo-client';
 import { parseResponse } from '../../../services/response-parser';
 import { getSessionId, getAgent } from '../../../services/session-manager';
+import { loadAgentsRoster } from '../../../config/agent-store';
+import { routeToAgent } from '../../../services/agent-router';
 import { splitMessage } from '../utils/message-splitter';
 import { startTypingIndicator } from '../middleware/typing';
 
 export function createTextMessageHandler(pinnedAgentPath?: string, instanceId?: string) {
+  // Pre-load roster IDs for delegation detection
+  const roster = loadAgentsRoster();
+  const rosterIds = roster.members.map(m => m.id);
+  const currentAgent = instanceId
+    ? roster.members.find(m => m.bindings.instanceName === instanceId)
+    : undefined;
+
   return async function handleTextMessage(ctx: Context): Promise<void> {
     let text = ctx.message?.text;
     const chatId = ctx.chat?.id;
@@ -36,7 +45,7 @@ export function createTextMessageHandler(pinnedAgentPath?: string, instanceId?: 
       const response = await callEnConvo(text, sessionId, agentPath);
       typing.stop();
 
-      const parsed = parseResponse(response);
+      const parsed = parseResponse(response, rosterIds);
 
       if (!parsed.text && parsed.filePaths.length === 0) {
         await ctx.reply('(EnConvo returned an empty response)');
@@ -50,12 +59,38 @@ export function createTextMessageHandler(pinnedAgentPath?: string, instanceId?: 
         }
       }
 
+      // Send files with error tracking
+      let failedFiles = 0;
       for (const filePath of parsed.filePaths) {
         try {
-          if (!fs.existsSync(filePath)) continue;
+          if (!fs.existsSync(filePath)) { failedFiles++; continue; }
           await sendFile(ctx, filePath);
         } catch (err) {
+          failedFiles++;
           console.error(`Failed to send file ${filePath}:`, err);
+        }
+      }
+      if (failedFiles > 0) {
+        await ctx.reply(`(${failedFiles} file(s) could not be delivered)`);
+      }
+
+      // Handle delegations — route to target agents
+      if (parsed.delegations.length > 0 && currentAgent) {
+        for (const delegation of parsed.delegations) {
+          const delegatedResponse = await routeToAgent(
+            currentAgent.name,
+            delegation,
+            { chatId: String(chatId), channel: 'telegram', instanceId },
+          );
+          if (delegatedResponse?.text) {
+            const target = roster.members.find(m => m.id === delegation.targetAgentId);
+            const label = target ? `${target.emoji} ${target.name}` : delegation.targetAgentId;
+            const header = `[${label}]:`;
+            const chunks = splitMessage(`${header}\n${delegatedResponse.text}`);
+            for (const chunk of chunks) {
+              await sendWithMarkdownFallback(ctx, chunk);
+            }
+          }
         }
       }
     } catch (err) {

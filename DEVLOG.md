@@ -2,7 +2,7 @@
 
 > Living document. Updated as the project evolves. Read this to understand what exists, why decisions were made, and what's next.
 
-**Last updated:** 2026-03-01 (Phase 11.1)
+**Last updated:** 2026-03-02 (Phase 12)
 
 ---
 
@@ -1154,3 +1154,85 @@ npm run uninstall-service # Stop + remove
 | Bot works in DM but not group | Privacy mode or not a member | Check BotFather settings, add bot to group |
 | Discord bot ignores messages | Message Content Intent disabled | Enable in Developer Portal → Bot → Privileged Intents |
 | Discord bot can't DM | Missing Partials.Channel | Built-in — verify discord.js v14 installed |
+
+---
+
+## Phase 12: Bug Fixes & Architecture Hardening (2026-03-02)
+
+**Methodology:** Self-Evolve (Observe → Research → Learn → Write → Deploy)
+
+### 12A: Critical Bug Fixes
+
+**12A-1 & 12A-2: Removed telegram config dependency from shared services**
+- `enconvo-client.ts` and `session-manager.ts` both imported from `../channels/telegram/config`, which calls `process.exit(1)` if `BOT_TOKEN` is missing
+- This crashed Discord bots and CLI commands that don't use Telegram
+- **Fix:** Both now import from `../config/store` (global config) — no channel-specific deps
+- `session-manager.ts` functions (`getAgent`, `setAgent`) now call `loadGlobalConfig()` per invocation
+
+**12A-3: File delivery error reporting**
+- Both Telegram and Discord handlers silently swallowed file send failures
+- **Fix:** Track failed file count, reply with `"(X file(s) could not be delivered)"` if any fail
+
+### 12B: Agent Grounding — Reduce Hallucination
+
+**12B-5: Inline workspace content in system prompts**
+- Old prompt told agent to "read workspace files before responding" — but agents may not have `read_file` tool
+- **Fix:** `generatePrompt()` now reads IDENTITY.md, SOUL.md, AGENTS.md, and team KB files at sync time and embeds their content directly in the prompt
+- File-read instruction kept as secondary "refresh" mechanism
+- Agents are grounded from the first message regardless of tool availability
+
+**12B-6: Identity grounding**
+- Added explicit identity reinforcement at end of system prompt
+- `"CRITICAL: You ARE ${agent.name}. Never identify as Claude, GPT, or any model name."`
+
+### 12C: Agent-to-Agent Communication Foundation
+
+**12C-7: Delegation detection in response parser**
+- `parseResponse()` now accepts optional `rosterIds` parameter
+- New `detectDelegations()` function matches `@agentId` or `→ agentId` patterns against known roster
+- Returns `DelegationDirective[]` with `targetAgentId` and extracted message context
+- Added to `ParsedResponse` interface
+
+**12C-8: Agent router service (NEW)**
+- `src/services/agent-router.ts` — `routeToAgent()` function
+- Looks up target agent in roster, calls their `agentPath` via EnConvo API
+- Uses shared team session: `${channel}-${chatId}-team`
+- Prepends `[From ${agentName}]:` context to the delegation message
+
+**12C-9: Delegation wired into message handlers**
+- Both Telegram and Discord handlers check for delegations after parsing response
+- If delegations found and current agent is known, routes to target agent
+- Delegated response is sent back to chat with `[emoji AgentName]:` header
+
+### 12D: Session & Config Hardening
+
+**12D-10: Shared team session option**
+- Agent router uses shared session format: `${channel}-${chatId}-team`
+- Allows cross-agent context sharing in the same chat
+
+**12D-11: Binding validation on agent add**
+- `agents add` now validates that the `--instance-name` exists in config for the given `--channel`
+- Warns if instance not found (non-blocking — allows pre-creation of bindings)
+- New `--channel` option (defaults to `telegram`)
+
+**12D-12: Workspace path collision fix**
+- `deriveWorkspacePath()` no longer gives leads special `workspace/` path
+- All agents get `workspace-${id}/` — prevents collision when multiple leads exist
+
+### Files Modified
+
+| File | Change |
+|---|---|
+| `src/services/enconvo-client.ts` | Import from global config, not telegram config |
+| `src/services/session-manager.ts` | Import from global config, not telegram config |
+| `src/services/team-prompt.ts` | Inline workspace content, identity grounding |
+| `src/services/response-parser.ts` | Delegation detection, DelegationDirective type |
+| `src/services/agent-router.ts` | **NEW** — cross-agent routing via EnConvo API |
+| `src/channels/telegram/handlers/message.ts` | File error reporting, delegation wiring |
+| `src/channels/discord/handlers/message.ts` | File error reporting, delegation wiring |
+| `src/config/agent-store.ts` | Workspace path fix (always `workspace-{id}`) |
+| `src/commands/agents/add.ts` | Binding validation, `--channel` option |
+
+### Long-term Goal
+
+`enconvo_cli` is evolving toward **OpenClaw CLI parity** — same command structure, same parameters. This requires reverse-engineering OpenClaw's CLI interface and mapping it to EnConvo's API. Phase 12 lays groundwork (agent routing, delegation, shared sessions) that mirrors OpenClaw's agent coordination patterns.

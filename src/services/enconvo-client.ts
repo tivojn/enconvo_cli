@@ -1,4 +1,4 @@
-import { config } from '../channels/telegram/config';
+import { loadGlobalConfig } from '../config/store';
 
 interface EnConvoContentItem {
   type: string;
@@ -33,8 +33,9 @@ export async function callEnConvo(
   agentPath: string = 'chat_with_ai/chat',
   options?: CallEnConvoOptions,
 ): Promise<EnConvoResponse> {
-  const baseUrl = options?.url ?? config.enconvo.url;
-  const timeout = options?.timeoutMs ?? config.enconvo.timeoutMs;
+  const globalConfig = loadGlobalConfig();
+  const baseUrl = options?.url ?? globalConfig.enconvo.url;
+  const timeout = options?.timeoutMs ?? globalConfig.enconvo.timeoutMs;
 
   const url = `${baseUrl}/command/call/${agentPath}`;
   const controller = new AbortController();

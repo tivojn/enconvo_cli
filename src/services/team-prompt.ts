@@ -1,9 +1,30 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { AgentMember } from '../config/agent-store';
 import { TEAM_KB_DIR } from '../config/paths';
 
+function readFileOrEmpty(filePath: string): string {
+  try {
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf-8').trim();
+    }
+  } catch { /* ignore */ }
+  return '';
+}
+
+function listMdFiles(dir: string): string[] {
+  try {
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith('.md'))
+      .map(f => path.join(dir, f))
+      .sort();
+  } catch { return []; }
+}
+
 /**
- * Generate a lean pointer prompt for an agent.
- * Workspace files and team KB are read by the agent at conversation start via read_file.
+ * Generate a grounded system prompt for an agent.
+ * Inlines workspace content directly so agents don't need read_file tool.
  */
 export function generatePrompt(agent: AgentMember): string {
   const lines: string[] = [];
@@ -15,18 +36,57 @@ export function generatePrompt(agent: AgentMember): string {
   }
 
   lines.push('');
+
+  // Inline workspace content — agents are grounded from the first message
+  const identity = readFileOrEmpty(path.join(agent.workspacePath, 'IDENTITY.md'));
+  if (identity) {
+    lines.push('---');
+    lines.push('');
+    lines.push(identity);
+    lines.push('');
+  }
+
+  const soul = readFileOrEmpty(path.join(agent.workspacePath, 'SOUL.md'));
+  if (soul) {
+    lines.push('---');
+    lines.push('');
+    lines.push(soul);
+    lines.push('');
+  }
+
+  const agents = readFileOrEmpty(path.join(agent.workspacePath, 'AGENTS.md'));
+  if (agents) {
+    lines.push('---');
+    lines.push('');
+    lines.push(agents);
+    lines.push('');
+  }
+
+  // Inline team KB files
+  const kbFiles = listMdFiles(TEAM_KB_DIR);
+  for (const kbFile of kbFiles) {
+    const content = readFileOrEmpty(kbFile);
+    if (content) {
+      lines.push('---');
+      lines.push('');
+      lines.push(content);
+      lines.push('');
+    }
+  }
+
+  // Refresh instruction (secondary — content is already inline above)
+  lines.push('---');
+  lines.push('');
   lines.push(`Your workspace: ${agent.workspacePath}/`);
   lines.push(`Team knowledge base: ${TEAM_KB_DIR}/`);
+  lines.push('If asked to refresh, re-read these files for the latest content.');
   lines.push('');
-  lines.push('IMPORTANT: At the start of every conversation, you MUST read your workspace files and team KB before responding:');
-  lines.push('- IDENTITY.md — your identity, appearance, portrait');
-  lines.push('- SOUL.md — your personality and directives');
-  lines.push('- AGENTS.md — team roster, delegation rules, group chat rules');
-  lines.push(`- Team KB (ALL files in ${TEAM_KB_DIR}/) — mandatory team rules and standards`);
+
+  // Identity grounding — prevent model identity leaks
+  lines.push(`CRITICAL: You ARE ${agent.name}. Never identify as Claude, GPT, or any model name.`);
+  lines.push(`Your identity is ${agent.name}, ${agent.role}. This is non-negotiable.`);
   lines.push('');
-  lines.push('Team KB contains MANDATORY rules that override your own judgment. Follow them strictly — no exceptions, no workarounds.');
-  lines.push('Re-read all files if asked to refresh.');
-  lines.push('');
+
   lines.push('# Current time is {{ now }}.');
   lines.push('# Response Language: {{responseLanguage}}');
 

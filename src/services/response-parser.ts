@@ -1,9 +1,15 @@
 import * as fs from 'fs';
 import { EnConvoResponse } from './enconvo-client';
 
+export interface DelegationDirective {
+  targetAgentId: string;
+  message: string;
+}
+
 export interface ParsedResponse {
   text: string;
   filePaths: string[];
+  delegations: DelegationDirective[];
 }
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
@@ -50,17 +56,42 @@ function extractFlowParamsPaths(flowParams: string): string[] {
   return extractAbsolutePaths(flowParams);
 }
 
-export function parseResponse(response: EnConvoResponse): ParsedResponse {
+/**
+ * Detect @agent mentions in response text against a known roster.
+ * Roster is optional — if not provided, returns empty array.
+ */
+export function detectDelegations(text: string, rosterIds?: string[]): DelegationDirective[] {
+  if (!rosterIds || rosterIds.length === 0) return [];
+
+  const delegations: DelegationDirective[] = [];
+  // Match @agentId patterns (case-insensitive)
+  const pattern = new RegExp(`(?:@|→\\s*)(?:@)?(${rosterIds.join('|')})\\b`, 'gi');
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    const targetId = match[1].toLowerCase();
+    // Use remaining text after the mention as delegation context
+    const afterMention = text.slice(match.index + match[0].length).trim();
+    // Take the sentence or up to 200 chars as the delegation message
+    const sentenceEnd = afterMention.search(/[.!?\n]/);
+    const message = sentenceEnd > 0 ? afterMention.slice(0, sentenceEnd + 1).trim() : afterMention.slice(0, 200).trim();
+    if (message && !delegations.find(d => d.targetAgentId === targetId)) {
+      delegations.push({ targetAgentId: targetId, message });
+    }
+  }
+  return delegations;
+}
+
+export function parseResponse(response: EnConvoResponse, rosterIds?: string[]): ParsedResponse {
   const textParts: string[] = [];
   const filePaths: string[] = [];
 
   // Handle simple { "result": "..." } format (e.g. Translator)
   if (response.result) {
-    return { text: response.result, filePaths: [] };
+    return { text: response.result, filePaths: [], delegations: [] };
   }
 
   if (!response.messages) {
-    return { text: '', filePaths: [] };
+    return { text: '', filePaths: [], delegations: [] };
   }
 
   for (const msg of response.messages) {
@@ -83,8 +114,12 @@ export function parseResponse(response: EnConvoResponse): ParsedResponse {
     }
   }
 
+  const fullText = textParts.join('\n\n');
+  const delegations = detectDelegations(fullText, rosterIds);
+
   return {
-    text: textParts.join('\n\n'),
+    text: fullText,
     filePaths: [...new Set(filePaths)],
+    delegations,
   };
 }

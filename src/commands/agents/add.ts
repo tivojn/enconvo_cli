@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { addAgent } from '../../config/agent-store';
 import { createWorkspace } from '../../services/workspace';
 import { loadAgentsRoster } from '../../config/agent-store';
+import { getChannelInstance } from '../../config/store';
 
 export function registerAdd(parent: Command): void {
   parent
@@ -14,12 +15,20 @@ export function registerAdd(parent: Command): void {
     .requiredOption('--agent-path <path>', 'EnConvo agent path (e.g. chat_with_ai/chat)')
     .requiredOption('--telegram-bot <username>', 'Telegram bot username (e.g. @Mavis_bot)')
     .requiredOption('--instance-name <name>', 'Instance name in config.json')
+    .option('--channel <channel>', 'Channel type to validate instance against', 'telegram')
     .option('--chinese-name <name>', 'Chinese name')
     .option('--emoji <emoji>', 'Agent emoji', '🤖')
     .option('--lead', 'Designate as team lead')
     .option('--json', 'Output as JSON')
     .action((opts) => {
       try {
+        // Validate instance exists in config
+        const instance = getChannelInstance(opts.channel, opts.instanceName);
+        if (!instance) {
+          const warn = `Warning: Instance "${opts.instanceName}" not found for channel "${opts.channel}". Binding may be invalid.`;
+          if (!opts.json) console.warn(warn);
+        }
+
         const member = addAgent({
           id: opts.id,
           name: opts.name,

@@ -44,9 +44,9 @@ function derivePreferenceKey(agentPath: string): string {
   return agentPath.replace('/', '|');
 }
 
-function deriveWorkspacePath(id: string, isLead: boolean): string {
-  // Lead agent gets plain "workspace/", others get "workspace-{id}/"
-  const dirName = isLead ? 'workspace' : `workspace-${id}`;
+function deriveWorkspacePath(id: string, _isLead: boolean): string {
+  // Always use workspace-{id}/ to avoid path collisions between leads
+  const dirName = `workspace-${id}`;
   return path.join(ENCONVO_CLI_DIR, dirName);
 }
 
