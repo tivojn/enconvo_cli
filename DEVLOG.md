@@ -193,13 +193,13 @@ Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand w
 
 #### Known Bots (Current)
 
-| Bot | commandKey | curl Path |
-|---|---|---|
-| Mavis (default) | `chat_with_ai\|chat` | `/command/call/chat_with_ai/chat` |
-| OpenClaw Assistant | `openclaw\|OpenClaw` | `/command/call/openclaw/OpenClaw` |
-| Translator | `translate\|translate` | `/command/call/translate/translate` |
-| Elena Content Dept | `custom_bot\|YJBEY3qHhFslKkMd6WIT` | `/command/call/custom_bot/YJBEY3qHhFslKkMd6WIT` |
-| Vivienne Finance Dept | `custom_bot\|BVxrKvityKoIpdJjS4p7` | `/command/call/custom_bot/BVxrKvityKoIpdJjS4p7` |
+| Bot | commandKey | Telegram | Instance |
+|---|---|---|---|
+| Mavis (default) | `chat_with_ai\|chat` | — | — |
+| OpenClaw Assistant | `openclaw\|OpenClaw` | — | — |
+| Translator | `translate\|translate` | — | — |
+| Elena Content Dept | `custom_bot\|YJBEY3qHhFslKkMd6WIT` | `@Enconvo_Elena_Content_Dept_bot` | elena |
+| Vivienne Finance Dept | `custom_bot\|BVxrKvityKoIpdJjS4p7` | `@Enconvo_Vivienne_Finance_bot` | vivienne |
 
 #### LLM Providers Available
 
@@ -371,7 +371,9 @@ scripts/
 - All CLI commands updated: `--name` required for instance-level operations (`add`, `remove`, `login`, `logout`, `logs`, `resolve`), optional for `status`
 - `list` shows instances grouped by channel type
 - 16 files changed, 542 insertions, 312 deletions
-- First live instance: `@Enconvo_Vivienne_Finance_bot` (vivienne) → `custom_bot/BVxrKvityKoIpdJjS4p7`
+- Live instances:
+  - `@Enconvo_Vivienne_Finance_bot` (vivienne) → `custom_bot/BVxrKvityKoIpdJjS4p7`
+  - `@Enconvo_Elena_Content_Dept_bot` (elena) → `custom_bot/YJBEY3qHhFslKkMd6WIT`
 
 ---
 
