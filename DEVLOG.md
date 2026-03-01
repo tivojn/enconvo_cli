@@ -249,6 +249,7 @@ src/
 │       │   └── media.ts            # Photo/document handler factories + legacy exports
 │       ├── middleware/
 │       │   ├── auth.ts             # createAuthMiddleware(allowedUserIds?) + legacy export
+│       │   ├── mention-gate.ts     # Group chat filter: only respond to @mentions, replies, commands
 │       │   └── typing.ts           # "typing..." indicator loop
 │       └── utils/
 │           └── message-splitter.ts # Splits long replies at 4096 char limit
@@ -394,6 +395,39 @@ scripts/
   - `@Enconvo_Elena_Content_Dept_bot` (elena) → `custom_bot/YJBEY3qHhFslKkMd6WIT`
   - `@EnConvo_Timothy_Dev_bot` (timothy) → `custom_bot/pOPhKXnP1CmNjCSQZ1mK`
 
+### Phase 9.5 — Group Chat: Mention-Gating + Session Isolation (2026-03-01)
+
+When all 4 bots were added to the same Telegram group, two problems surfaced:
+
+**Problem 1: All bots respond to every message.** A message to `@mavis` triggered responses from all 4 bots.
+**Fix:** Created `mention-gate.ts` middleware that filters group messages. Bots only respond when:
+- Private chat (always respond)
+- `@mentioned` by username (`@EnConvo_Mavis_bot how are you`)
+- Replied to (continuing a thread)
+- Targeted command (`/reset@EnConvo_Mavis_bot`)
+
+Non-matching messages are silently ignored — no noise in the group.
+
+**Problem 2: Stale context bleed.** All bots shared the session ID `telegram-{chatId}`, meaning they read each other's conversation history.
+**Fix:** Session IDs now include the instance name: `telegram-{chatId}-{instanceName}`. Each bot has its own isolated context. The `session-manager.ts` was updated to key on `chatId:instanceId` instead of just `chatId`.
+
+**Problem 3: @mentions stopped working after `/reset`.** This turned out to be a **Telegram Bot API limitation**, not a code bug. Bots with privacy mode enabled (the default) never receive plain text messages in groups — even if they contain `@BotUsername`. Telegram simply doesn't deliver them. The fix is to disable privacy mode via BotFather:
+1. `/setprivacy` → Select bot → **Disable**
+2. Remove and re-add the bot to existing groups (Telegram caches privacy per membership)
+
+**Problem 4: Timothy didn't respond to bare `/reset`.** In groups with multiple bots, Telegram delivers untagged commands (`/reset`) to only one bot. The fix is to use targeted command syntax: `/reset@BotUsername`.
+
+**Updated `/help` and `/start` commands** to show group-specific usage hints when the bot detects it's in a group chat.
+
+Files changed:
+- `src/channels/telegram/middleware/mention-gate.ts` (new) — group message filter
+- `src/channels/telegram/bot.ts` — wire mention-gate, pass instanceId to handlers
+- `src/channels/telegram/handlers/commands.ts` — group usage hints in /help and /start
+- `src/channels/telegram/handlers/message.ts` — strip @mention from text, use instanceId
+- `src/channels/telegram/handlers/media.ts` — use instanceId in session
+- `src/services/session-manager.ts` — instance-aware session keys
+- `src/channels/telegram/adapter.ts` — pass instanceName as instanceId to createBot()
+
 ---
 
 ## What's Next
@@ -432,6 +466,7 @@ scripts/
 - **In-memory state** — Agent selection and session overrides live in JS Maps. Lost on restart.
 - **LaunchAgent scripts not yet multi-instance** — `install.sh`/`uninstall.sh` still reference the single `com.enconvo.telegram-adapter` plist. Need per-instance plist generation.
 - **Legacy code still in tree** — `src/index.ts`, `config.ts`, `config.json`, `.env` are no longer used in production (all bots run via multi-instance CLI) but remain because handler factory exports depend on `config.ts` at import time. Safe to remove in a dedicated refactor.
+- **Group privacy is a BotFather setting, not code** — Each bot must have privacy mode disabled via BotFather (`/setprivacy` → Disable) for @mention support in groups. This is a Telegram API limitation. After changing the setting, the bot must be removed and re-added to existing groups.
 - **No retry on Telegram 409** — Polling instance collisions crash; launchd restarts.
 - **Media handling is one-way** — Photos/docs downloaded and path sent as text to EnConvo.
 - **Markdown rendering** — Telegram Markdown subset doesn't match GitHub-flavored markdown from EnConvo responses.
@@ -440,14 +475,68 @@ scripts/
 
 ## How to Run
 
-### Development
+### Prerequisites
+- macOS with Node.js (Homebrew or nvm)
+- EnConvo running locally (port 54535)
+- Telegram bot token(s) — see Telegram Bot Setup below
+- For LaunchAgent: `/bin/bash` needs Full Disk Access (install script guides you)
+
+### Telegram Bot Setup (BotFather)
+
+Each bot needs to be created and configured in BotFather before registering with `enconvo_cli`.
+
+#### 1. Create the bot
+1. Open Telegram → search [@BotFather](https://t.me/BotFather)
+2. `/newbot` → choose display name → choose username (must end in `bot`)
+3. Save the API token (format: `1234567890:AAF...`)
+
+#### 2. Configure bot settings (per bot)
+
+**Disable Group Privacy** (required for group @mention support):
+```
+/setprivacy → Select bot → Disable
+```
+Without this, the bot will NOT receive `@mention` messages in groups — only targeted commands (`/cmd@BotName`) and replies. This is a Telegram API limitation, not a code issue.
+
+> After disabling privacy, **remove and re-add** the bot to existing groups. Telegram caches the privacy setting per group membership.
+
+**Set Bot Commands** (optional, adds command menu):
+```
+/setcommands → Select bot →
+reset - Start a fresh conversation
+status - Check connection status
+help - Show help message
+```
+
+**Set Bot Info** (optional):
+```
+/setdescription → Select bot → "EnConvo AI agent — [agent name]"
+/setabouttext → Select bot → About text
+/setuserpic → Select bot → Send profile photo
+```
+
+#### 3. Register with enconvo_cli
+```bash
+enconvo channels add --channel telegram --name mavis \
+  --token "1234567890:AAF..." \
+  --agent chat_with_ai/chat \
+  --validate
+```
+
+#### 4. Add to group (optional)
+- Create a Telegram group or use an existing one
+- Add each bot as a member
+- Bots respond only to @mentions, replies, or targeted commands
+- Each bot has isolated session context — no cross-contamination
+
+### Development (Legacy Single Bot)
 ```bash
 cp .env.example .env  # Add BOT_TOKEN
 npm install
 npm run dev
 ```
 
-### CLI
+### CLI (Multi-Instance)
 ```bash
 # List all channels and instances
 enconvo channels list
@@ -477,8 +566,22 @@ npm run logs              # Watch output
 npm run uninstall-service # Stop + remove
 ```
 
-### Prerequisites
-- macOS with Homebrew node
-- EnConvo running locally (port 54535)
-- Telegram bot token(s)
-- For LaunchAgent: `/bin/bash` needs Full Disk Access (install script guides you)
+### Group Chat Quick Reference
+
+| Action | Result |
+|---|---|
+| `@BotName message` | Only that bot responds |
+| Reply to bot's message | Only that bot responds |
+| `/reset@BotName` | Resets only that bot's session |
+| Bare `/reset` | Only one bot receives it (Telegram picks) |
+| Regular text (no @mention) | No bot responds |
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Bot ignores @mentions in group | Privacy mode ON (BotFather default) | `/setprivacy` → Disable, then remove/re-add bot to group |
+| Only one bot responds to `/reset` | Telegram delivers bare commands to one bot | Use `/reset@BotUsername` |
+| 409 Conflict error | Another process polling same token | Kill old process: `ps aux \| grep telegram` |
+| Empty responses | EnConvo not running | `curl http://localhost:54535/health` |
+| Bot works in DM but not group | Privacy mode or not a member | Check BotFather settings, add bot to group |

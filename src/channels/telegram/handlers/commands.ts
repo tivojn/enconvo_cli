@@ -5,6 +5,10 @@ import { config } from '../config';
 export function registerCommands(bot: Bot, pinnedAgentPath?: string, instanceId?: string): void {
   bot.command('start', async (ctx: Context) => {
     const chatId = ctx.chat?.id ?? 0;
+    const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+    const groupTip = isGroup
+      ? `\n\n💡 In this group, mention me with @${ctx.me.username} to chat.`
+      : '';
 
     if (pinnedAgentPath) {
       await ctx.reply(
@@ -12,7 +16,8 @@ export function registerCommands(bot: Bot, pinnedAgentPath?: string, instanceId?
         'Commands:\n' +
         '/reset - Start a new conversation\n' +
         '/status - Check connection status\n' +
-        '/help - Show this help message'
+        '/help - Show this help message' +
+        groupTip
       );
     } else {
       const agent = getAgent(chatId);
@@ -22,33 +27,44 @@ export function registerCommands(bot: Bot, pinnedAgentPath?: string, instanceId?
         '/agent - Switch between AI agents\n' +
         '/reset - Start a new conversation\n' +
         '/status - Check connection status\n' +
-        '/help - Show this help message'
+        '/help - Show this help message' +
+        groupTip
       );
     }
   });
 
   bot.command('help', async (ctx: Context) => {
+    const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+    const groupSection = isGroup
+      ? '\n\n' +
+        '📌 Group Chat Usage:\n' +
+        `• Mention me: @${ctx.me.username} your message\n` +
+        '• Reply to my message to continue a thread\n' +
+        `• Target commands: /reset@${ctx.me.username}\n` +
+        '• I only respond when mentioned or replied to'
+      : '';
+
     if (pinnedAgentPath) {
       await ctx.reply(
         'EnConvo Telegram Bot (dedicated instance)\n\n' +
         `Agent: ${pinnedAgentPath}\n\n` +
-        'Just send me any text message and I\'ll forward it to the agent.\n' +
-        'You can also send photos or documents.\n\n' +
+        'Send me text, photos, or documents and I\'ll forward them to the agent.\n\n' +
         'Commands:\n' +
         '/reset - Start a fresh conversation (clears context)\n' +
         '/status - Check if EnConvo is reachable\n' +
-        '/help - Show this message'
+        '/help - Show this message' +
+        groupSection
       );
     } else {
       await ctx.reply(
         'EnConvo Telegram Bot\n\n' +
-        'Just send me any text message and I\'ll forward it to EnConvo AI.\n' +
-        'You can also send photos or documents.\n\n' +
+        'Send me text, photos, or documents and I\'ll forward them to EnConvo AI.\n\n' +
         'Commands:\n' +
         '/agent - List agents or switch (e.g. /agent openclaw)\n' +
         '/reset - Start a fresh conversation (clears context)\n' +
         '/status - Check if EnConvo is reachable\n' +
-        '/help - Show this message'
+        '/help - Show this message' +
+        groupSection
       );
     }
   });
