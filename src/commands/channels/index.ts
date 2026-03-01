@@ -8,6 +8,7 @@ import { registerLogout } from './logout';
 import { registerCapabilities } from './capabilities';
 import { registerResolve } from './resolve';
 import { registerLogs } from './logs';
+import { registerSend } from './send';
 
 export function registerChannelsCommands(program: Command): void {
   const channels = program
@@ -23,4 +24,5 @@ export function registerChannelsCommands(program: Command): void {
   registerCapabilities(channels);
   registerResolve(channels);
   registerLogs(channels);
+  registerSend(channels);
 }
