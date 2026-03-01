@@ -143,3 +143,13 @@
   - Tests: getAgent, removeAgent, bindAgent (channelBindings, duplicate replace, legacy sync)
   - Tests: unbindAgent (specific removal, non-existent binding), updateAgent partial fields
   - Tests: saveAgentsRoster strips derived fields from disk JSON
+
+## [2026-03-02 07:23] Self-Evolve Round 16: Error path tests + configure wizard
+- **Status:** success
+- **Tests:** 156/156 passing (15 suites, +8 new tests)
+- **Notes:**
+  - Extended enconvo-client tests: 500/503 errors, network failures, AbortError timeout, 429 rate limit, empty body, default agent path, signal usage
+  - Added `enconvo configure` interactive wizard (OpenClaw parity: `openclaw configure`)
+  - Wizard: 3-step flow — API settings (with connectivity probe) → channel instance setup → agent roster setup
+  - Supports `--channel`, `--agent`, `--non-interactive` flags
+  - CLI now has 11 top-level commands + 4 command groups
