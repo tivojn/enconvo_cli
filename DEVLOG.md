@@ -213,7 +213,7 @@ Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand w
 
 ---
 
-## Current File Structure (Phase 7)
+## Current File Structure (Phase 8)
 
 ```
 src/
@@ -223,7 +223,7 @@ src/
 │   └── channel.ts                  # ChannelAdapter interface
 ├── config/
 │   ├── paths.ts                    # ~/.enconvo_cli/ path constants
-│   └── store.ts                    # Global config read/write/migrate
+│   └── store.ts                    # Global config CRUD, instance management, auto-migration
 ├── commands/
 │   └── channels/
 │       ├── index.ts                # Registers all subcommands
@@ -237,17 +237,17 @@ src/
 │       ├── resolve.ts              # Resolve user/group identifier
 │       └── logs.ts                 # Tail log files
 ├── channels/
-│   ├── registry.ts                 # Adapter lookup by name
+│   ├── registry.ts                 # Adapter lookup + createAdapterInstance()
 │   └── telegram/
-│       ├── adapter.ts              # Implements ChannelAdapter
-│       ├── bot.ts                  # Bot creation, middleware + handler wiring
+│       ├── adapter.ts              # ChannelAdapter impl, instance-aware (instanceName, dynamic labels)
+│       ├── bot.ts                  # createBot(token?, agentPath?, allowedUserIds?) — pinned or legacy mode
 │       ├── config.ts               # Legacy config loader (.env + config.json)
 │       ├── handlers/
-│       │   ├── commands.ts         # /start, /help, /agent, /reset, /status
-│       │   ├── message.ts          # Text message → EnConvo → reply
-│       │   └── media.ts            # Photo/document download → EnConvo → reply
+│       │   ├── commands.ts         # /start, /help, /agent, /reset, /status (pinned-aware)
+│       │   ├── message.ts          # Text handler factory + legacy export
+│       │   └── media.ts            # Photo/document handler factories + legacy exports
 │       ├── middleware/
-│       │   ├── auth.ts             # Allowlist check
+│       │   ├── auth.ts             # createAuthMiddleware(allowedUserIds?) + legacy export
 │       │   └── typing.ts           # "typing..." indicator loop
 │       └── utils/
 │           └── message-splitter.ts # Splits long replies at 4096 char limit
@@ -270,7 +270,7 @@ scripts/
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "enconvo": {
     "url": "http://localhost:54535",
     "timeoutMs": 120000,
@@ -281,20 +281,36 @@ scripts/
   },
   "channels": {
     "telegram": {
-      "enabled": true,
-      "token": "BOT_TOKEN_HERE",
-      "allowedUserIds": [],
-      "service": {
-        "plistLabel": "com.enconvo.telegram-adapter",
-        "logPath": "~/Library/Logs/enconvo-telegram-adapter.log",
-        "errorLogPath": "~/Library/Logs/enconvo-telegram-adapter-error.log"
+      "instances": {
+        "mavis": {
+          "enabled": true,
+          "token": "BOT_TOKEN_HERE",
+          "agent": "chat_with_ai/chat",
+          "allowedUserIds": [],
+          "service": {
+            "plistLabel": "com.enconvo.telegram-mavis",
+            "logPath": "~/Library/Logs/enconvo-telegram-mavis.log",
+            "errorLogPath": "~/Library/Logs/enconvo-telegram-mavis-error.log"
+          }
+        },
+        "vivienne": {
+          "enabled": true,
+          "token": "BOT_TOKEN_HERE",
+          "agent": "custom_bot/BVxrKvityKoIpdJjS4p7",
+          "allowedUserIds": [],
+          "service": {
+            "plistLabel": "com.enconvo.telegram-vivienne",
+            "logPath": "~/Library/Logs/enconvo-telegram-vivienne.log",
+            "errorLogPath": "~/Library/Logs/enconvo-telegram-vivienne-error.log"
+          }
+        }
       }
     }
   }
 }
 ```
 
-**Future:** Config will support multiple instances per channel type (one bot per agent), with a `--name` identifier and `--agent` mapping.
+**Auto-migration:** Old flat configs (`channels.telegram: { token, ... }`) are automatically migrated to `channels.telegram.instances.default` on first load.
 
 ---
 
@@ -343,15 +359,23 @@ scripts/
 - All commands support `--json` flag
 - `npm run dev` backward compat preserved
 
+### Phase 8 — Multi-Instance Channels (commit `1ea7f3b`)
+- **One bot per agent achieved.** Each Telegram bot instance is pinned to a single EnConvo agent.
+- Config schema v2: `channels.telegram.instances.{name}` — each instance has token, agent, allowedUserIds, service config
+- Auto-migration: old flat `channels.telegram: { token, ... }` → `channels.telegram.instances.default` on first load
+- `createBot(token?, agentPath?, allowedUserIds?)` — pinned mode (dedicated agent) vs legacy mode (multi-agent switching)
+- Handlers refactored with factory pattern: `createTextMessageHandler(agentPath?)`, `createPhotoHandler(agentPath?)`, etc.
+- Legacy exports preserved — `npm run dev` path completely unchanged
+- `TelegramAdapter` gains `instanceName` field, dynamic service labels (`com.enconvo.telegram-{name}`), and per-instance log paths
+- `createAdapterInstance(channelType, instanceName)` in registry for fresh per-instance adapters
+- All CLI commands updated: `--name` required for instance-level operations (`add`, `remove`, `login`, `logout`, `logs`, `resolve`), optional for `status`
+- `list` shows instances grouped by channel type
+- 16 files changed, 542 insertions, 312 deletions
+- First live instance: `@Enconvo_Vivienne_Finance_bot` (vivienne) → `custom_bot/BVxrKvityKoIpdJjS4p7`
+
 ---
 
 ## What's Next
-
-### Near-Term: Multi-Instance Channels
-- Support multiple Telegram bot instances (one per agent)
-- Add `--name` and `--agent` flags to `channels add`
-- Config schema: `channels.telegram` becomes `channels.telegram.instances[]`
-- Each instance has its own token, agent mapping, and service config
 
 ### Near-Term: Agent Management
 - `enconvo agents list` — read `~/.config/enconvo/installed_commands/` to enumerate all agents/bots
@@ -380,8 +404,8 @@ scripts/
 ## Known Limitations
 
 - **Agent discovery not yet wired into CLI** — The command registry at `~/.config/enconvo/installed_commands/` has all 1,107 commands on disk. `enconvo agents list` needs to be built to read it. (See `enconvo-agent-cli` skill for schema.)
-- **Single-instance channels** — Currently one Telegram bot per channel type. Multi-instance support needed for one-bot-per-agent model.
 - **In-memory state** — Agent selection and session overrides live in JS Maps. Lost on restart.
+- **LaunchAgent scripts not yet multi-instance** — `install.sh`/`uninstall.sh` still reference the single `com.enconvo.telegram-adapter` plist. Need per-instance plist generation.
 - **No retry on Telegram 409** — Polling instance collisions crash; launchd restarts.
 - **Media handling is one-way** — Photos/docs downloaded and path sent as text to EnConvo.
 - **Markdown rendering** — Telegram Markdown subset doesn't match GitHub-flavored markdown from EnConvo responses.
@@ -399,10 +423,25 @@ npm run dev
 
 ### CLI
 ```bash
+# List all channels and instances
+enconvo channels list
+
+# Add a bot instance (one bot per agent)
+enconvo channels add --channel telegram --name vivienne --token <token> --agent custom_bot/BVxrKvityKoIpdJjS4p7 --validate
+enconvo channels add --channel telegram --name mavis --token <token> --agent chat_with_ai/chat
+
+# Start/stop instances
+enconvo channels login --channel telegram --name vivienne -f   # foreground
+enconvo channels logout --channel telegram --name vivienne
+
+# Monitor
+enconvo channels status --channel telegram
+enconvo channels status --channel telegram --name vivienne
+enconvo channels logs --channel telegram --name vivienne
+
+# Via npm/npx
 npm run cli -- channels list
 npx tsx src/cli.ts channels list
-# Or after npm link:
-enconvo channels list
 ```
 
 ### Production (LaunchAgent)
