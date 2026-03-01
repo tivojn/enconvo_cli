@@ -1,9 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { Command } from 'commander';
 import { loadAgentsRoster, AgentMember } from '../../config/agent-store';
 import { generatePrompt } from '../../services/team-prompt';
+import { loadGlobalConfig, getChannelInstance } from '../../config/store';
+import { callEnConvo } from '../../services/enconvo-client';
 import { ENCONVO_PREFERENCES_DIR, BACKUPS_DIR, TEAM_KB_DIR } from '../../config/paths';
+
+const SILENT_REFRESH_MESSAGE = `Re-read all workspace files and team KB now: IDENTITY.md, SOUL.md, AGENTS.md, and ${TEAM_KB_DIR}/. Do not announce or summarize what you read. Just confirm with "OK".`;
 
 interface SyncResult {
   id: string;
@@ -76,6 +81,33 @@ function syncAgents(targets: AgentMember[], opts: { dryRun?: boolean; json?: boo
   return results;
 }
 
+async function silentRefreshAgents(targets: AgentMember[], chatId: string, json?: boolean): Promise<void> {
+  const config = loadGlobalConfig();
+
+  for (const agent of targets) {
+    const instance = getChannelInstance('telegram', agent.bindings.instanceName);
+    if (!instance) continue;
+
+    const sessionId = `telegram-${chatId}-${agent.bindings.instanceName}-${crypto.randomUUID().slice(0, 8)}`;
+
+    try {
+      await callEnConvo(SILENT_REFRESH_MESSAGE, sessionId, instance.agent, {
+        url: config.enconvo.url,
+        timeoutMs: config.enconvo.timeoutMs,
+      });
+
+      if (!json) {
+        console.log(`  ${agent.emoji} ${agent.name}: refreshed ✓`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!json) {
+        console.error(`  ${agent.emoji} ${agent.name}: refresh error — ${msg}`);
+      }
+    }
+  }
+}
+
 export function registerSync(parent: Command): void {
   parent
     .command('sync')
@@ -84,7 +116,8 @@ export function registerSync(parent: Command): void {
     .option('--agent <id>', 'Sync a specific agent only')
     .option('--json', 'Output as JSON')
     .option('--watch', 'Watch team KB for changes and auto-sync')
-    .action((opts) => {
+    .option('--chat <id>', 'Telegram chat ID for auto-refresh in watch mode')
+    .action(async (opts) => {
       const roster = loadAgentsRoster();
 
       if (roster.members.length === 0) {
@@ -140,7 +173,11 @@ export function registerSync(parent: Command): void {
         }
 
         if (!opts.json) {
-          console.log(`\nWatching ${TEAM_KB_DIR} for changes... (Ctrl+C to stop)`);
+          const mode = opts.chat ? 'sync + silent refresh' : 'sync only';
+          console.log(`\nWatching ${TEAM_KB_DIR} for changes (${mode})... (Ctrl+C to stop)`);
+          if (!opts.chat) {
+            console.log('  Tip: add --chat <id> to auto-refresh agents on changes');
+          }
         }
 
         // Debounce to avoid multiple rapid syncs on editor save
@@ -151,7 +188,7 @@ export function registerSync(parent: Command): void {
           if (!filename || !filename.endsWith('.md') || filename.startsWith('.')) return;
 
           if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
+          debounceTimer = setTimeout(async () => {
             const ts = new Date().toLocaleTimeString();
             if (!opts.json) {
               console.log(`\n[${ts}] ${filename} changed — syncing...`);
@@ -170,6 +207,14 @@ export function registerSync(parent: Command): void {
             } else {
               const synced = watchResults.filter((r) => r.status === 'synced').length;
               console.log(`  Synced ${synced}/${freshTargets.length} agents.`);
+            }
+
+            // Auto-refresh agents if chat ID provided
+            if (opts.chat) {
+              if (!opts.json) {
+                console.log(`  Refreshing agents (silent, fresh session)...`);
+              }
+              await silentRefreshAgents(freshTargets, opts.chat, opts.json);
             }
           }, 300);
         });

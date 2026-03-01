@@ -8,6 +8,7 @@ import { parseResponse } from '../../services/response-parser';
 import { TEAM_KB_DIR } from '../../config/paths';
 
 const REFRESH_MESSAGE = `Team files updated. Re-read all workspace files and team KB now: IDENTITY.md, SOUL.md, AGENTS.md, and ${TEAM_KB_DIR}/. Acknowledge briefly.`;
+const SILENT_REFRESH_MESSAGE = `Re-read all workspace files and team KB now: IDENTITY.md, SOUL.md, AGENTS.md, and ${TEAM_KB_DIR}/. Do not announce or summarize what you read. Just confirm with "OK".`;
 
 export function registerRefresh(parent: Command): void {
   parent
@@ -16,6 +17,7 @@ export function registerRefresh(parent: Command): void {
     .requiredOption('--chat <id>', 'Telegram chat ID to deliver responses to')
     .option('--agent <id>', 'Refresh a specific agent only')
     .option('--reset', 'Generate a new session ID (fresh conversation)')
+    .option('--silent', 'Refresh without posting to Telegram')
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       const roster = loadAgentsRoster();
@@ -62,7 +64,8 @@ export function registerRefresh(parent: Command): void {
             console.log(`  ${agent.emoji} ${agent.name}: sending refresh...`);
           }
 
-          const response = await callEnConvo(REFRESH_MESSAGE, sessionId, instance.agent, {
+          const message = opts.silent ? SILENT_REFRESH_MESSAGE : REFRESH_MESSAGE;
+          const response = await callEnConvo(message, sessionId, instance.agent, {
             url: config.enconvo.url,
             timeoutMs: config.enconvo.timeoutMs,
           });
@@ -70,14 +73,16 @@ export function registerRefresh(parent: Command): void {
           const parsed = parseResponse(response);
           const responseText = parsed.text || '(no text response)';
 
-          // Deliver response to Telegram chat
-          const bot = new Bot(instance.token);
-          const label = `${agent.emoji} ${agent.name}`;
+          // Deliver response to Telegram chat (skip in silent mode)
+          if (!opts.silent) {
+            const bot = new Bot(instance.token);
+            const label = `${agent.emoji} ${agent.name}`;
 
-          try {
-            await bot.api.sendMessage(opts.chat, `${label}:\n${responseText}`, { parse_mode: 'Markdown' });
-          } catch {
-            await bot.api.sendMessage(opts.chat, `${label}:\n${responseText}`);
+            try {
+              await bot.api.sendMessage(opts.chat, `${label}:\n${responseText}`, { parse_mode: 'Markdown' });
+            } catch {
+              await bot.api.sendMessage(opts.chat, `${label}:\n${responseText}`);
+            }
           }
 
           results.push({ id: agent.id, status: 'refreshed', response: responseText });
