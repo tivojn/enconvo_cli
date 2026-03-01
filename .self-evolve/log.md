@@ -1,2 +1,38 @@
 # Self-Evolution Log
 
+## [2026-03-02 06:30] Phase 12: Bug Fixes & Architecture Hardening
+- **Status:** success
+- **Changes:** 10 files, 326 insertions
+- **Commit:** f40058a
+- **Notes:** Removed telegram config deps, inline prompts, delegation detection, agent router
+
+## [2026-03-02 06:33] Self-Evolve Round 1: Workspace migration + bot handle delegation
+- **Status:** success
+- **Changes:** 5 files, 79 insertions
+- **Commit:** 91548aa
+- **Notes:** Found 3 bugs via testing: workspace path migration, stale portrait paths, bot handle detection
+
+## [2026-03-02 06:35] Self-Evolve Round 2: Dead code + config cleanup
+- **Status:** success
+- **Changes:** 3 files, 13 insertions
+- **Commit:** 8cfbda6
+- **Notes:** Removed BOT_TOKEN guard, fixed telegram commands.ts config source, null safety
+
+## [2026-03-02 06:36] Add test suite + .editorconfig + self-evolve infrastructure
+- **Status:** success
+- **Changes:** 13 files, 1594 insertions
+- **Commit:** f3e6fc8
+- **Tests:** 38/38 passing (5 suites)
+- **Duration:** ~5 min
+- **Notes:** vitest, response-parser tests, team-prompt tests, enconvo-client tests, agent-router tests, agent-store tests
+
+## [2026-03-02 06:40] Self-Evolve Round 4: Message-splitter refactor + CI + OpenClaw research
+- **Status:** success
+- **Changes:** 6 files modified/created
+- **Tests:** 50/50 passing (6 suites, +12 new tests)
+- **Notes:**
+  - Extracted shared `src/utils/message-splitter.ts` from duplicated Telegram/Discord code
+  - Channel-specific files now delegate to shared utility with proper MAX_LENGTH
+  - Added GitHub Actions CI workflow (Node 20+22, typecheck + test)
+  - Completed OpenClaw CLI research: 25 command domains, 142+ subcommands mapped
+  - Created `.self-evolve/openclaw-parity.md` with full parity gap analysis
