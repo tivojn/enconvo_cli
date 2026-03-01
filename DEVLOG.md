@@ -1,4 +1,4 @@
-# EnConvo Telegram Adapter — Development Log
+# EnConvo CLI — Development Log
 
 > Living document. Updated as the project evolves. Read this to understand what exists, why decisions were made, and what's next.
 
@@ -8,58 +8,94 @@
 
 ## What This Is
 
-A Telegram bot that acts as a stateless proxy to **EnConvo AI** (a local macOS AI platform). Users chat with the bot on Telegram, and messages are forwarded to EnConvo's local API. Responses — including text, images, and files — are sent back through Telegram.
+An extensible CLI tool (`enconvo_cli`) for managing **EnConvo AI** channels, agents, and services. Originally a standalone Telegram bot adapter, now refactored into a CLI modeled after OpenClaw's multi-agent architecture.
 
-**Bot:** `@Encovo_Mavis_001_bot`
-**Stack:** TypeScript, Grammy (Telegram bot framework), tsx (runtime)
+**Stack:** TypeScript, Commander.js (CLI), Grammy (Telegram), tsx (runtime)
 **Repo:** https://github.com/tivojn/EnConvo_Channels
 
 ---
 
-## Architecture
+## Vision & Architecture
+
+### The Big Picture
+
+EnConvo is a local macOS AI platform with many agents (it calls them "commands", "bots", or "actions"). Users can create, duplicate, and customize agents in EnConvo's GUI. `enconvo_cli` maps those agents to messaging channels and composes them into teams.
 
 ```
-Telegram ←→ Grammy Bot (long polling) ←→ EnConvo API (localhost:54535)
+EnConvo (agent factory, GUI)
+  └── enconvo_cli (maps agents to channels, composes teams)
+        ├── Telegram bots (one bot per agent)
+        ├── Future: Discord, Slack, etc.
+        └── Agent groups (team compositions)
 ```
 
-### Core Design Decisions
+**Flow:** Customize agent in EnConvo → Register via CLI → Deploy to channel → Compose into groups
 
-1. **Stateless proxy** — The adapter doesn't store conversation history. It passes a `sessionId` to EnConvo, which handles context/memory internally.
+### Architectural Inspiration: OpenClaw
 
-2. **Long polling, not webhooks** — No public URL needed. The bot polls Telegram for updates. Simpler to run on a local Mac.
+OpenClaw (Peter Steinberger's autonomous AI assistant) is the architectural reference — not a dependency. Key patterns borrowed:
 
-3. **Multi-agent support** — Users can switch between different EnConvo agents (Mavis, OpenClaw, Translator) via `/agent` command. Agents are configured in `config.json`.
+| OpenClaw Concept | EnConvo CLI Equivalent |
+|---|---|
+| One bot per agent (dedicated) | Each Telegram bot maps to one EnConvo agent |
+| Main agent (orchestrator) | Mavis = team lead, delegates to specialists |
+| Agent groups | Telegram groups with multiple agent bots |
+| Channel adapters | `ChannelAdapter` interface, one impl per platform |
+| Extensible CLI | Commander.js with subcommand groups |
 
-4. **Session management** — Session IDs are deterministic (`telegram-{chatId}`). `/reset` appends a UUID suffix to start fresh. This maps to EnConvo's session-based context.
+### One Bot Per Agent (Key Design Shift)
 
-5. **Auth via allowlist** — `config.json` has `allowedUserIds`. Empty array = open to everyone. No database needed.
+**Old model (Phase 2):** One Telegram bot → N agents (switch via `/agent` command)
+**New model (target):** N Telegram bots → one agent each (dedicated, no switching)
 
----
+Examples:
+```
+@EnConvo_Mavis_bot       → chat_with_ai/chat     (team lead, orchestrator)
+@EnConvo_Translator_bot  → translate/translate    (specialist)
+@EnConvo_OpenClaw_bot    → openclaw/OpenClaw      (specialist)
+```
 
-## File Structure
+Target CLI workflow:
+```bash
+enconvo channels add --channel telegram --name mavis --token <token-1> --agent chat_with_ai/chat
+enconvo channels add --channel telegram --name translator --token <token-2> --agent translate/translate
+enconvo channels add --channel telegram --name openclaw --token <token-3> --agent openclaw/OpenClaw
+enconvo channels login --channel telegram --name mavis
+enconvo channels login --channel telegram --name translator
+enconvo channels login --channel telegram --name openclaw
+```
+
+### Agent Groups (Team Compositions)
+
+Telegram groups become purpose-built teams. Each group has a team lead (Mavis) and specialists:
 
 ```
-src/
-├── index.ts              # Entry point, graceful shutdown handlers
-├── bot.ts                # Bot creation, middleware + handler wiring
-├── config.ts             # Loads .env + config.json, defines types
-├── handlers/
-│   ├── commands.ts       # /start, /help, /agent, /reset, /status
-│   ├── message.ts        # Text message → EnConvo → reply
-│   └── media.ts          # Photo/document download → EnConvo → reply
-├── services/
-│   ├── enconvo-client.ts # HTTP client for EnConvo API
-│   ├── response-parser.ts# Parses EnConvo response formats (messages, result, flow_step, deliverables)
-│   └── session-manager.ts# Session ID + agent selection per chat
-├── middleware/
-│   ├── auth.ts           # Allowlist check
-│   └── typing.ts         # "typing..." indicator loop
-└── utils/
-    └── message-splitter.ts # Splits long replies at 4096 char Telegram limit
+"EnConvo Agents Group" (general purpose)
+├── @EnConvo_Mavis_bot         → Team Lead (orchestrates, delegates)
+├── @EnConvo_Translator_bot    → Specialist
+└── @EnConvo_OpenClaw_bot      → Specialist
 
-config.json               # Agent definitions, EnConvo URL, auth settings
-.env                      # BOT_TOKEN (not committed)
+"French Office Team" (custom)
+├── @EnConvo_Mavis_Fr_bot      → Team Lead (French-configured Mavis)
+├── @EnConvo_Translator_EnFr   → EN↔FR specialist
+└── @EnConvo_Explain_Fr_bot    → French explainer
 ```
+
+Mavis as team lead can:
+- Receive complex requests in the group
+- Break them down and delegate to specialists
+- Collect results and synthesize responses
+- Use her own tools for direct handling
+
+### Custom Agents
+
+Users can customize agents in EnConvo's GUI:
+- Duplicate an existing command/agent
+- Customize via skills or settings
+- Example: `translate` → `new-translator-en-fr` (specialized EN↔FR translator)
+- Then register the custom agent via CLI and deploy to a channel
+
+This means the agent list is dynamic and user-defined — not hardcoded.
 
 ---
 
@@ -67,12 +103,99 @@ config.json               # Agent definitions, EnConvo URL, auth settings
 
 - **Base URL:** `http://localhost:54535`
 - **Endpoint pattern:** `POST /command/call/{category}/{command}`
+- **Deep link mapping:** `enconvo://{category}/{command}` → `/command/call/{category}/{command}`
 - **Request body:** `{ "input_text": "...", "sessionId": "..." }`
 - **Response formats:**
   - Standard: `{ "type": "messages", "messages": [{ "role": "assistant", "content": [{ "type": "text", "text": "..." }] }] }`
   - Simple: `{ "result": "..." }` (used by Translator agent)
   - Flow steps: content items with `type: "flow_step"`, `flowParams` containing file paths or Deliverable objects
 - **File delivery:** Response parser extracts absolute file paths from text content, `flow_step` params, and `Deliverable` objects. Files are sent as Telegram photos (images) or documents (everything else).
+- **Terminology:** EnConvo calls its agents "commands", "bots", or "actions"
+
+---
+
+## Current File Structure (Phase 7)
+
+```
+src/
+├── cli.ts                          # CLI entry point (Commander.js)
+├── index.ts                        # Legacy dev entry (backward compat)
+├── types/
+│   └── channel.ts                  # ChannelAdapter interface
+├── config/
+│   ├── paths.ts                    # ~/.enconvo_cli/ path constants
+│   └── store.ts                    # Global config read/write/migrate
+├── commands/
+│   └── channels/
+│       ├── index.ts                # Registers all subcommands
+│       ├── list.ts                 # List channels + status
+│       ├── status.ts               # Runtime status, probe live
+│       ├── add.ts                  # Configure a channel
+│       ├── remove.ts               # Remove/disable config
+│       ├── login.ts                # Start service (foreground or launchd)
+│       ├── logout.ts               # Stop service
+│       ├── capabilities.ts         # Show supported features
+│       ├── resolve.ts              # Resolve user/group identifier
+│       └── logs.ts                 # Tail log files
+├── channels/
+│   ├── registry.ts                 # Adapter lookup by name
+│   └── telegram/
+│       ├── adapter.ts              # Implements ChannelAdapter
+│       ├── bot.ts                  # Bot creation, middleware + handler wiring
+│       ├── config.ts               # Legacy config loader (.env + config.json)
+│       ├── handlers/
+│       │   ├── commands.ts         # /start, /help, /agent, /reset, /status
+│       │   ├── message.ts          # Text message → EnConvo → reply
+│       │   └── media.ts            # Photo/document download → EnConvo → reply
+│       ├── middleware/
+│       │   ├── auth.ts             # Allowlist check
+│       │   └── typing.ts           # "typing..." indicator loop
+│       └── utils/
+│           └── message-splitter.ts # Splits long replies at 4096 char limit
+└── services/                       # Shared across channels
+    ├── enconvo-client.ts           # HTTP client (accepts optional url/timeout)
+    ├── response-parser.ts          # Parses EnConvo response formats
+    └── session-manager.ts          # Session ID + agent selection per chat
+
+config.json                         # Legacy agent definitions + auth
+com.enconvo.telegram-adapter.plist  # macOS LaunchAgent
+scripts/
+├── run.sh                          # rsync + launch wrapper (TCC workaround)
+├── install.sh                      # Install LaunchAgent
+└── uninstall.sh                    # Remove LaunchAgent
+```
+
+---
+
+## Config Schema (`~/.enconvo_cli/config.json`)
+
+```json
+{
+  "version": 1,
+  "enconvo": {
+    "url": "http://localhost:54535",
+    "timeoutMs": 120000,
+    "agents": [
+      { "id": "mavis", "name": "Mavis", "path": "chat_with_ai/chat", "description": "Default AI assistant" }
+    ],
+    "defaultAgent": "mavis"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "BOT_TOKEN_HERE",
+      "allowedUserIds": [],
+      "service": {
+        "plistLabel": "com.enconvo.telegram-adapter",
+        "logPath": "~/Library/Logs/enconvo-telegram-adapter.log",
+        "errorLogPath": "~/Library/Logs/enconvo-telegram-adapter-error.log"
+      }
+    }
+  }
+}
+```
+
+**Future:** Config will support multiple instances per channel type (one bot per agent), with a `--name` identifier and `--agent` mapping.
 
 ---
 
@@ -88,6 +211,7 @@ config.json               # Agent definitions, EnConvo URL, auth settings
 - Added `/agent` command to list and switch between EnConvo agents
 - Agents configured in `config.json` with id, name, path, description
 - Per-chat agent selection stored in memory (Map)
+- **Note:** This approach (one bot, many agents) will be superseded by one-bot-per-agent model
 
 ### Phase 3 — Command Filtering (commit `f23cb3f`)
 - Unrecognized `/commands` blocked from being forwarded to EnConvo
@@ -105,88 +229,61 @@ config.json               # Agent definitions, EnConvo URL, auth settings
 
 ### Phase 6 — Auto-Restart Service (2026-03-01)
 - Created macOS LaunchAgent (`com.enconvo.telegram-adapter.plist`) for auto-restart on wake/crash/login
-- `KeepAlive` with `NetworkState: true` — restarts when network returns (i.e., after Mac wakes)
+- `KeepAlive` with `NetworkState: true` — restarts when network returns (after Mac wakes)
 - `RunAtLoad: true` — starts on user login
-- **TCC workaround:** Project lives in `~/Downloads` (macOS-protected). LaunchAgent runs via `/bin/bash` (granted Full Disk Access), which `rsync`s project to `~/.local/share/enconvo-telegram-adapter/` before launching `node`. This avoids needing FDA for node itself.
-- Install script auto-detects permission errors and opens System Settings to the right pane
+- **TCC workaround:** Project in `~/Downloads` (macOS-protected). LaunchAgent runs via `/bin/bash` (Full Disk Access), `rsync`s to `~/.local/share/enconvo-telegram-adapter/` before launching
+- Install script auto-detects permission errors and opens System Settings
 - Scripts: `npm run install-service`, `npm run uninstall-service`, `npm run logs`
 
-**Files added:**
-- `com.enconvo.telegram-adapter.plist` — launchd plist template
-- `scripts/run.sh` — rsync + launch wrapper
-- `scripts/install.sh` — copies plist, loads agent, detects TCC errors
-- `scripts/uninstall.sh` — unloads agent, removes plist
+### Phase 7 — CLI Refactor: `enconvo_cli` (commit `7cce501`)
+- Refactored into extensible CLI with Commander.js
+- Moved Telegram code into `src/channels/telegram/`
+- Created `ChannelAdapter` interface — contract for all channel implementations
+- Centralized config at `~/.enconvo_cli/config.json`
+- Built `TelegramAdapter`, channel registry, 9 CLI subcommands
+- All commands support `--json` flag
+- `npm run dev` backward compat preserved
 
 ---
 
-## Current State (2026-03-01)
+## What's Next
 
-**Working:**
-- Bot running as LaunchAgent (auto-restarts on wake/crash/login)
-- Text, photo, and document messages forwarded to EnConvo
-- Multi-agent switching (Mavis, OpenClaw, Translator)
-- File/image delivery from EnConvo responses
-- Session management with `/reset`
-- Auth allowlist (currently open — empty list)
+### Near-Term: Multi-Instance Channels
+- Support multiple Telegram bot instances (one per agent)
+- Add `--name` and `--agent` flags to `channels add`
+- Config schema: `channels.telegram` becomes `channels.telegram.instances[]`
+- Each instance has its own token, agent mapping, and service config
 
-**Configured agents:**
-| ID | Name | Path | Description |
-|---|---|---|---|
-| `mavis` | Mavis | `chat_with_ai/chat` | Default AI assistant |
-| `openclaw` | OpenClaw Assistant | `openclaw/OpenClaw` | OpenClaw agent manager |
-| `translate` | Translator | `translate/translate` | Translate text between languages |
+### Near-Term: Agent Management
+- `enconvo agents list` — enumerate available EnConvo agents
+- Ideally query EnConvo's API for dynamic agent discovery
+- Fallback: manual config in `~/.enconvo_cli/config.json`
+
+### Medium-Term: Agent Groups
+- Create Telegram groups as team compositions
+- Mavis as orchestrator/team lead
+- Inter-agent delegation (likely via EnConvo's own tools, not bot-to-bot Telegram messages)
+
+### Future: Additional Channels
+- Discord, Slack, etc. — each implements `ChannelAdapter`
+- Same one-bot-per-agent model
+
+### Future: Self-Evolution Patterns (OpenClaw-Inspired)
+- **Channel health watchdog** — periodic heartbeat probes, auto-restart on failure
+- **CLI usage logging** — record invocations to `~/.enconvo_cli/history.jsonl` for pattern analysis
+- **Pattern crystallization** — detect repeated workflows, suggest combined commands
+- **Channel scaffolding** — auto-generate adapter code for new channel types
 
 ---
 
-## Known Limitations & Future Work
+## Known Limitations
 
-- **No agent discovery** — Agents are manually configured in `config.json`. Waiting for EnConvo to expose an API to enumerate available agents/deeplinks.
-- **In-memory state** — Agent selection and session overrides live in JS Maps. Lost on restart. Fine for single-user, but won't scale.
-- **No retry on Telegram 409** — When two polling instances collide (e.g., during restart), the new instance crashes and waits for launchd to restart it. Could add retry logic with backoff.
-- **Media handling is one-way** — Photos/docs are downloaded and path is sent as text to EnConvo. EnConvo may or may not use the file depending on the agent.
-- **Markdown rendering** — Bot tries Telegram Markdown first, falls back to plain text. Some EnConvo responses use GitHub-flavored markdown that doesn't render correctly in Telegram.
-
-### Phase 7 — CLI Refactor: `enconvo_cli` with `channels` Subcommand Group (2026-03-01)
-- Refactored project into `enconvo_cli` — an extensible CLI tool modeled after OpenClaw's architecture
-- Added **Commander.js** for hierarchical CLI subcommands
-- **Moved Telegram code** into `src/channels/telegram/` (bot, config, handlers, middleware, utils)
-- **Created ChannelAdapter interface** (`src/types/channel.ts`) — all channels implement this contract
-- **Created centralized config system** at `~/.enconvo_cli/config.json` (`src/config/paths.ts`, `src/config/store.ts`)
-- **Built TelegramAdapter** (`src/channels/telegram/adapter.ts`) wrapping existing bot code
-- **Channel registry** (`src/channels/registry.ts`) — static adapter lookup, extensible for future channels
-- **Refactored `enconvo-client.ts`** — `callEnConvo()` now accepts optional `url`/`timeoutMs` params
-- **9 CLI subcommands**: `list`, `status`, `add`, `remove`, `login`, `logout`, `capabilities`, `resolve`, `logs`
-- All commands support `--json` flag for machine-readable output
-- `npm run dev` still works unchanged (backward compat via `src/index.ts`)
-- `npm run cli` / `npx tsx src/cli.ts` for CLI access
-
-**New file structure:**
-```
-src/
-├── cli.ts                          # CLI entry point (Commander.js)
-├── index.ts                        # Legacy dev entry (import path updated)
-├── types/channel.ts                # ChannelAdapter interface
-├── config/paths.ts                 # ~/.enconvo_cli/ path constants
-├── config/store.ts                 # Global config read/write/migrate
-├── commands/channels/              # 9 subcommands (list, add, login, etc.)
-├── channels/registry.ts            # Adapter lookup
-├── channels/telegram/              # Telegram adapter + all bot code
-│   ├── adapter.ts                  # Implements ChannelAdapter
-│   ├── bot.ts, config.ts           # Moved from src/
-│   ├── handlers/, middleware/, utils/  # Moved from src/
-└── services/                       # Shared (enconvo-client, response-parser, session-manager)
-```
-
-**CLI usage:**
-```bash
-enconvo channels list                          # List channels + status
-enconvo channels add --channel telegram --token <token>  # Configure
-enconvo channels login --channel telegram -f   # Start in foreground
-enconvo channels status --probe                # Check runtime
-enconvo channels logs --channel telegram       # Tail logs
-enconvo channels logout --channel telegram     # Stop service
-enconvo channels capabilities --channel telegram  # Show features
-```
+- **No agent discovery API** — Agents are manually configured. Waiting for EnConvo to expose an enumeration endpoint.
+- **Single-instance channels** — Currently one Telegram bot per channel type. Multi-instance support needed for one-bot-per-agent model.
+- **In-memory state** — Agent selection and session overrides live in JS Maps. Lost on restart.
+- **No retry on Telegram 409** — Polling instance collisions crash; launchd restarts.
+- **Media handling is one-way** — Photos/docs downloaded and path sent as text to EnConvo.
+- **Markdown rendering** — Telegram Markdown subset doesn't match GitHub-flavored markdown from EnConvo responses.
 
 ---
 
@@ -199,6 +296,14 @@ npm install
 npm run dev
 ```
 
+### CLI
+```bash
+npm run cli -- channels list
+npx tsx src/cli.ts channels list
+# Or after npm link:
+enconvo channels list
+```
+
 ### Production (LaunchAgent)
 ```bash
 npm run install-service   # Install + start
@@ -209,5 +314,5 @@ npm run uninstall-service # Stop + remove
 ### Prerequisites
 - macOS with Homebrew node
 - EnConvo running locally (port 54535)
-- Telegram bot token in `.env`
-- For LaunchAgent: `/bin/bash` needs Full Disk Access (install script guides you through this)
+- Telegram bot token(s)
+- For LaunchAgent: `/bin/bash` needs Full Disk Access (install script guides you)
