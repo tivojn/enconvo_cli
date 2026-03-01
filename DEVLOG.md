@@ -2,7 +2,7 @@
 
 > Living document. Updated as the project evolves. Read this to understand what exists, why decisions were made, and what's next.
 
-**Last updated:** 2026-03-01
+**Last updated:** 2026-03-01 (Phase 10.3)
 
 ---
 
@@ -214,7 +214,7 @@ Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand w
 
 ---
 
-## Current File Structure (Phase 10)
+## Current File Structure (Phase 10.3)
 
 ```
 src/
@@ -223,7 +223,7 @@ src/
 ├── types/
 │   └── channel.ts                  # ChannelAdapter interface
 ├── config/
-│   ├── paths.ts                    # ~/.enconvo_cli/ path constants (config, agents, backups, prefs)
+│   ├── paths.ts                    # ~/.enconvo_cli/ path constants (config, agents, backups, prefs, commands, plist)
 │   ├── store.ts                    # Global config CRUD, instance management, auto-migration
 │   └── agent-store.ts             # Agent roster CRUD (~/.enconvo_cli/agents.json)
 ├── commands/
@@ -246,7 +246,9 @@ src/
 │       ├── delete.ts               # Remove agent from roster (--force deletes workspace)
 │       ├── set-identity.ts         # Update agent identity fields + regenerate workspace
 │       ├── sync.ts                 # Sync workspace prompts → EnConvo preferences (--dry-run)
-│       └── bindings.ts             # Show agent↔channel binding map
+│       ├── bindings.ts             # Show agent↔channel binding map
+│       ├── refresh.ts              # Notify agents to re-read workspace files + team KB
+│       └── check.ts                # Health check: agent files, version tracking, API reachability
 ├── channels/
 │   ├── registry.ts                 # Adapter lookup + createAdapterInstance()
 │   └── telegram/
@@ -268,7 +270,7 @@ src/
     ├── response-parser.ts          # Parses EnConvo response formats
     ├── session-manager.ts          # Session ID + agent selection per chat
     ├── workspace.ts                # Creates workspace dirs (IDENTITY.md, SOUL.md, AGENTS.md)
-    └── team-prompt.ts              # Reads workspace files → generates system prompt for EnConvo
+    └── team-prompt.ts              # Generates lean pointer prompt (agents read their own workspace files)
 
 config.json                         # Legacy agent definitions + auth
 com.enconvo.telegram-adapter.plist  # macOS LaunchAgent
@@ -320,6 +322,11 @@ scripts/
         }
       }
     }
+  },
+  "enconvoApp": {
+    "version": "2.2.23",
+    "build": 254,
+    "lastChecked": "2026-03-01T07:44:00.005Z"
   }
 }
 ```
@@ -363,6 +370,7 @@ scripts/
 ├── agents.json                    # Team roster
 ├── config.json                    # Channel instances, EnConvo API config
 ├── backups/                       # Preference backups before sync
+├── kb/                            # Shared team knowledge base (all agents read this)
 ├── workspace/                     # Mavis (team lead, no suffix)
 │   ├── IDENTITY.md                # Name, role, emoji, team, intro
 │   ├── SOUL.md                    # Personality directives, specialist focus
@@ -382,12 +390,12 @@ scripts/
 ```
 enconvo agents sync [--dry-run] [--agent <id>]
 
-1. Read IDENTITY.md → extract name, role, intro
-2. Read SOUL.md → extract core truths, specialist focus, boundaries
-3. Read AGENTS.md → extract team roster, delegation guide, group chat rules
-4. Compress into system prompt with Jinja2 footer: {{ now }}, {{responseLanguage}}
-5. Backup existing preference file to ~/.enconvo_cli/backups/
-6. Write prompt field to ~/.config/enconvo/installed_preferences/{key}.json
+1. Generate lean pointer prompt (name, role, workspace path, team KB path, read instructions)
+2. Append Jinja2 footer: {{ now }}, {{responseLanguage}}
+3. Backup existing preference file to ~/.enconvo_cli/backups/
+4. Write prompt field to ~/.config/enconvo/installed_preferences/{key}.json
+
+Agent reads IDENTITY.md, SOUL.md, AGENTS.md, and team KB on conversation start.
 ```
 
 ---
@@ -528,13 +536,15 @@ OpenClaw-inspired agent team system. Bots now know about each other, have person
 - Writes to `~/.config/enconvo/installed_preferences/{key}.json` (prompt field only)
 - Backs up existing preference files to `~/.enconvo_cli/backups/` before writing
 
-**6 CLI commands (`enconvo agents`):**
+**8 CLI commands (`enconvo agents`):**
 - `list [--bindings] [--json]` — show team roster
 - `add --id <id> --name <name> ...` — add agent + create workspace
 - `delete <id> [--force]` — remove agent, optionally delete workspace
 - `set-identity <id> --name <n> --role <r> ...` — update identity + regenerate workspace
 - `sync [--dry-run] [--agent <id>]` — push prompts to EnConvo preferences
 - `bindings [--json]` — show agent↔channel binding map
+- `refresh --chat <id> [--agent <id>] [--reset]` — notify agents to re-read workspace files
+- `check [--agent <id>] [--json]` — health check: agent files, version, API
 
 **Bare @mention fix:**
 - Previously, a bare `@BotUsername` (no text) was silently dropped — the mention got stripped and the empty string was discarded
@@ -569,6 +579,102 @@ enconvo channels send --channel telegram --name vivienne --chat "-5063546642" --
 **Why this matters:** Previously, testing agent responses required either using Telegram directly or calling the EnConvo API via curl (which doesn't show up in Telegram). This command does both — calls the agent AND delivers the response to the chat, so the conversation is visible in the group.
 
 Files: 2 changed, 107 insertions.
+
+### Phase 10.2 — Lean Pointer Prompts + Refresh Command (commit `c578cdf`)
+
+Replaced the heavy prompt generation (which crammed IDENTITY/SOUL/AGENTS content into the system prompt) with a lean pointer prompt. Agents now read their own workspace files at conversation start via `read_file`.
+
+**Lean prompt format:**
+```
+You are Mavis (梅薇), the Team Lead & Orchestrator of the EnConvo AI Team.
+Your Telegram bot: @Encovo_Mavis_001_bot
+
+Your workspace: ~/.enconvo_cli/workspace/
+Team knowledge base: ~/.enconvo_cli/kb/
+
+IMPORTANT: At the start of every conversation, read your workspace files and team KB:
+- IDENTITY.md — your identity, appearance, portrait
+- SOUL.md — your personality and directives
+- AGENTS.md — team roster, delegation rules, group chat rules
+- Team KB (all files in ~/.enconvo_cli/kb/) — shared team rules and standards
+
+Follow all rules in these files. Re-read them if asked to refresh.
+
+# Current time is {{ now }}.
+# Response Language: {{responseLanguage}}
+```
+
+**Why:** The old approach crammed ~2KB of compressed workspace content into each prompt. This was fragile (compression logic could lose nuance) and inflexible (edits to workspace files required re-sync). The lean prompt delegates reading to the agent itself — edits to IDENTITY.md, SOUL.md, AGENTS.md, or team KB files take effect on the next conversation start, no re-sync needed.
+
+**`enconvo agents refresh` command:**
+```bash
+enconvo agents refresh --chat "-5063546642"                    # refresh all agents
+enconvo agents refresh --chat "-5063546642" --agent vivienne   # refresh one
+enconvo agents refresh --chat "-5063546642" --reset            # fresh session + refresh
+```
+
+Sends a refresh message to each agent via EnConvo API, asking them to re-read their workspace files and team KB. Delivers the agent's acknowledgment to the specified Telegram chat. Useful after editing workspace files mid-conversation.
+
+**`TEAM_KB_DIR` constant:**
+- `~/.enconvo_cli/kb/` — shared team knowledge base directory
+- Referenced in lean prompts so all agents read from the same KB
+- Path constant moved to `src/config/paths.ts`
+
+### Phase 10.3 — Health Check & Version Tracking (commit `c578cdf`)
+
+EnConvo app updates can silently break the CLI — `installed_commands/` gets batch-rewritten, agent paths could vanish, prompts could be wiped. Added a health-check command and version tracking.
+
+**`enconvo agents check` command:**
+```bash
+enconvo agents check                    # check all agents
+enconvo agents check --agent vivienne   # check one agent
+enconvo agents check --json             # machine-readable output
+```
+
+**Per-agent checks:**
+- Command file exists: `installed_commands/{preferenceKey}.json`
+- Preference file exists: `installed_preferences/{preferenceKey}.json`
+- Prompt synced: preference's `prompt` field starts with `You are {name}`
+- Workspace: IDENTITY.md, SOUL.md, AGENTS.md all exist
+- Telegram instance: channel config has the matching instance
+
+**Global checks:**
+- EnConvo app version: reads from `/Applications/EnConvo.app/Contents/Info.plist` via `PlistBuddy`, compares to stored version
+- API reachable: quick curl ping to `http://localhost:54535`
+- Team KB: `~/.enconvo_cli/kb/` exists and file count
+
+**Version tracking:**
+- Stored in `~/.enconvo_cli/config.json` as `enconvoApp: { version, build, lastChecked }`
+- On first run, stores the current version
+- On subsequent runs, compares and flags if version changed (warns to re-check agent paths)
+- `lastChecked` updated on every run
+
+**Output example:**
+```
+EnConvo v2.2.23 (build 254) — matches stored version ✓
+API: reachable (http://localhost:54535) ✓
+
+👑 Mavis:
+  Command file    ✓ chat_with_ai|chat.json
+  Preference      ✓ chat_with_ai|chat.json
+  Prompt synced   ✓ lean prompt detected
+  Workspace       ✓ IDENTITY.md, SOUL.md, AGENTS.md
+  Telegram        ✓ instance "mavis" configured
+
+💰 Vivienne:
+  Command file    ✓ custom_bot|BVxrKvityKoIpdJjS4p7.json
+  ...
+
+Team KB: ✓ ~/.enconvo_cli/kb/ (1 file)
+
+All checks passed: 23/23
+```
+
+**New path constants:**
+- `ENCONVO_COMMANDS_DIR` — `~/.config/enconvo/installed_commands/`
+- `ENCONVO_APP_PLIST` — `/Applications/EnConvo.app/Contents/Info.plist`
+
+Files: 4 changed, 452 insertions, 118 deletions.
 
 ---
 
@@ -726,6 +832,15 @@ enconvo agents sync --dry-run --agent mavis
 # Push prompts to EnConvo preferences (backs up first)
 enconvo agents sync
 enconvo agents sync --agent vivienne   # single agent
+
+# Refresh agents (re-read workspace files)
+enconvo agents refresh --chat "-5063546642"
+enconvo agents refresh --chat "-5063546642" --agent mavis --reset
+
+# Health check (agent files, version, API)
+enconvo agents check
+enconvo agents check --agent vivienne
+enconvo agents check --json
 
 # Remove an agent
 enconvo agents delete timothy          # keeps workspace
