@@ -2,7 +2,7 @@
 
 > Living document. Updated as the project evolves. Read this to understand what exists, why decisions were made, and what's next.
 
-**Last updated:** 2026-03-01 (Phase 10.5)
+**Last updated:** 2026-03-01 (Phase 10.6)
 
 ---
 
@@ -214,7 +214,7 @@ Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand w
 
 ---
 
-## Current File Structure (Phase 10.5)
+## Current File Structure (Phase 10.6)
 
 ```
 src/
@@ -270,7 +270,7 @@ src/
     ├── response-parser.ts          # Parses EnConvo response formats
     ├── session-manager.ts          # Session ID + agent selection per chat
     ├── workspace.ts                # Creates workspace dirs (IDENTITY.md, SOUL.md, AGENTS.md)
-    └── team-prompt.ts              # Generates lean pointer prompt + injects team KB rules into system prompt
+    └── team-prompt.ts              # Generates lean pointer prompt (agents read workspace + KB via read_file)
 
 config.json                         # Legacy agent definitions + auth
 com.enconvo.telegram-adapter.plist  # macOS LaunchAgent
@@ -388,16 +388,17 @@ scripts/
 ### Prompt Sync Flow
 
 ```
-enconvo agents sync [--dry-run] [--agent <id>]
+enconvo agents sync [--dry-run] [--agent <id>] [--watch] [--chat <id>]
 
 1. Generate lean pointer prompt (name, role, workspace path, team KB path, read instructions)
-2. Read ~/.enconvo_cli/kb/*.md → inject as "MANDATORY TEAM RULES" in the prompt
-3. Append Jinja2 footer: {{ now }}, {{responseLanguage}}
-4. Backup existing preference file to ~/.enconvo_cli/backups/
-5. Write prompt field to ~/.config/enconvo/installed_preferences/{key}.json
+2. Append Jinja2 footer: {{ now }}, {{responseLanguage}}
+3. Backup existing preference file to ~/.enconvo_cli/backups/
+4. Write prompt field to ~/.config/enconvo/installed_preferences/{key}.json
 
-Agent reads IDENTITY.md, SOUL.md, AGENTS.md via read_file on conversation start.
-Team KB rules are already in the system prompt — no read_file needed for enforcement.
+With --watch: monitors ~/.enconvo_cli/kb/ and re-runs steps 1-4 on changes.
+With --watch --chat <id>: also silently refreshes agents with fresh sessions.
+
+Agent reads IDENTITY.md, SOUL.md, AGENTS.md, and team KB via read_file on fresh session start.
 ```
 
 ---
@@ -717,13 +718,13 @@ MANDATORY TEAM RULES (enforced — no exceptions):
 
 **Test result:** After injection, all 3 agents (Timothy, Vivienne, Elena) correctly refused the emerald selfie request. Elena even self-corrected: "I just broke it earlier — my bad. That emerald selfie shouldn't have happened. Won't repeat."
 
+**Later reverted** in Phase 10.6 — hardcoding was the wrong fix. The real issue was stale sessions. See Phase 10.6 for details.
+
 Files: 1 changed, 34 insertions, 1 deletion.
 
 ### Phase 10.5 — Auto-Sync Watch Mode (commit `4d9130d`)
 
-**Problem:** After adding a team rule to `~/.enconvo_cli/kb/team-standards.md`, the user had to manually run `enconvo agents sync` to inject it into agent prompts. Without the manual sync, agents kept using the old prompt and ignored the new rule.
-
-**Fix:** Added `--watch` flag to the sync command:
+Added `--watch` flag to the sync command to monitor team KB for changes and auto-sync agent prompts.
 
 ```bash
 enconvo agents sync --watch              # watch + auto-sync all agents
@@ -737,14 +738,44 @@ enconvo agents sync --watch --agent mavis # watch + auto-sync one agent
 - Ignores non-`.md` files and hidden files
 - Runs until Ctrl+C
 
-**Updated workflow for team rule changes:**
-1. Start `enconvo agents sync --watch` (leave running)
-2. Edit `~/.enconvo_cli/kb/team-standards.md` — auto-synced within 300ms
-3. `enconvo agents refresh --chat <id> --reset` — active sessions pick up new prompt
-
-Step 2 is now automatic. Only step 3 remains manual (intentionally — refreshing active sessions has side effects and should be deliberate).
-
 Files: 1 changed, 121 insertions, 53 deletions.
+
+### Phase 10.6 — Revert KB Hardcoding + Silent Refresh Pipeline (commit `a15fd76`)
+
+**Key discovery:** The Phase 10.4 hardcoding of team KB into the system prompt was the wrong fix. We retested with lean prompts (no hardcoding) + fresh sessions (`--reset`) — agents followed the rules correctly. The real problem was **stale sessions**, not `read_file` being unreliable.
+
+Two variables changed in the original Phase 10.4 test:
+1. Hardcoded rules into system prompt
+2. Used `--reset` (fresh session)
+
+We never isolated which one fixed it. Retesting proved: `read_file` + fresh session is enough. Hardcoding is unnecessary and bad for maintenance (rules duplicated across all preference files, prompt bloats).
+
+**Changes:**
+
+1. **Reverted `team-prompt.ts`** — back to lean pointer prompt, no KB injection. Strengthened wording: "Team KB contains MANDATORY rules that override your own judgment. Follow them strictly — no exceptions, no workarounds."
+
+2. **`--silent` flag on refresh** — agents re-read workspace files via EnConvo API but nothing gets posted to the Telegram chat. Prevents 4 (or 1000) agents flooding the group with acknowledgment messages.
+   ```bash
+   enconvo agents refresh --chat "-5063546642" --reset --silent
+   ```
+
+3. **Watch + auto-refresh pipeline** — `--watch --chat <id>` now triggers a full cycle on KB changes:
+   ```bash
+   enconvo agents sync --watch --chat "-5063546642"
+   ```
+   Edit KB file → watcher detects change (300ms debounce) → syncs all prompts → silently refreshes all agents with fresh sessions. Zero manual steps.
+
+**Final architecture (two-tier prompt strategy):**
+- **System prompt** (lean pointer) → tells agents WHERE to read files, not WHAT they contain
+- **Workspace files** (IDENTITY.md, SOUL.md, AGENTS.md) → descriptive content, read via `read_file`
+- **Team KB** (`~/.enconvo_cli/kb/*.md`) → prescriptive rules, read via `read_file` on fresh session start
+- **Watch mode** → ensures KB changes propagate automatically
+
+**Workflow for team rule changes (fully automated):**
+1. Start `enconvo agents sync --watch --chat <chatId>` (leave running)
+2. Edit `~/.enconvo_cli/kb/team-standards.md` — that's it. Auto-synced + auto-refreshed silently.
+
+Files: 3 changed, 66 insertions, 48 deletions.
 
 ---
 
