@@ -29,7 +29,7 @@ async function downloadFile(ctx: Context, fileId: string, extension: string): Pr
   return filePath;
 }
 
-export function createPhotoHandler(pinnedAgentPath?: string) {
+export function createPhotoHandler(pinnedAgentPath?: string, instanceId?: string) {
   return async function handlePhoto(ctx: Context): Promise<void> {
     const chatId = ctx.chat?.id;
     const photos = ctx.message?.photo;
@@ -43,7 +43,7 @@ export function createPhotoHandler(pinnedAgentPath?: string) {
     try {
       const localPath = await downloadFile(ctx, photo.file_id, '.jpg');
       const inputText = `${caption}\n\n[Attached image: ${localPath}]`;
-      const sessionId = getSessionId(chatId);
+      const sessionId = getSessionId(chatId, instanceId);
       const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
 
       const response = await callEnConvo(inputText, sessionId, agentPath);
@@ -59,7 +59,7 @@ export function createPhotoHandler(pinnedAgentPath?: string) {
   };
 }
 
-export function createDocumentHandler(pinnedAgentPath?: string) {
+export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: string) {
   return async function handleDocument(ctx: Context): Promise<void> {
     const chatId = ctx.chat?.id;
     const doc = ctx.message?.document;
@@ -73,7 +73,7 @@ export function createDocumentHandler(pinnedAgentPath?: string) {
     try {
       const localPath = await downloadFile(ctx, doc.file_id, ext);
       const inputText = `${caption}\n\n[Attached file: ${localPath}]`;
-      const sessionId = getSessionId(chatId);
+      const sessionId = getSessionId(chatId, instanceId);
       const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
 
       const response = await callEnConvo(inputText, sessionId, agentPath);

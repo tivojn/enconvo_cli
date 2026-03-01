@@ -7,13 +7,19 @@ import { getSessionId, getAgent } from '../../../services/session-manager';
 import { splitMessage } from '../utils/message-splitter';
 import { startTypingIndicator } from '../middleware/typing';
 
-export function createTextMessageHandler(pinnedAgentPath?: string) {
+export function createTextMessageHandler(pinnedAgentPath?: string, instanceId?: string) {
   return async function handleTextMessage(ctx: Context): Promise<void> {
-    const text = ctx.message?.text;
+    let text = ctx.message?.text;
     const chatId = ctx.chat?.id;
     if (!text || !chatId) return;
 
-    const sessionId = getSessionId(chatId);
+    // Strip @mention from text before sending to EnConvo
+    if (ctx.me?.username) {
+      text = text.replace(new RegExp(`@${ctx.me.username}`, 'gi'), '').trim();
+    }
+    if (!text) return;
+
+    const sessionId = getSessionId(chatId, instanceId);
     const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
     const typing = startTypingIndicator(ctx);
 

@@ -33,9 +33,9 @@ export class TelegramAdapter implements ChannelAdapter {
     const allowedUserIds = config.allowedUserIds as number[] | undefined;
 
     if (agentPath) {
-      // Pinned mode — pass token, agentPath, allowedUserIds directly
+      // Pinned mode — pass token, agentPath, allowedUserIds, instanceName directly
       const { createBot } = await import('./bot');
-      this.bot = createBot(token, agentPath, allowedUserIds);
+      this.bot = createBot(token, agentPath, allowedUserIds, this.instanceName);
     } else {
       // Legacy mode — set env var for config.ts, no pinned agent
       process.env.BOT_TOKEN = token;

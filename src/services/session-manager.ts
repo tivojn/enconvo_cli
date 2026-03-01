@@ -1,16 +1,25 @@
 import * as crypto from 'crypto';
 import { config, AgentConfig } from '../channels/telegram/config';
 
-const sessionOverrides = new Map<number, string>();
+// Key is "chatId:instanceId" to isolate sessions per bot per chat
+const sessionOverrides = new Map<string, string>();
 const agentOverrides = new Map<number, string>();
 
-export function getSessionId(chatId: number): string {
-  return sessionOverrides.get(chatId) ?? `telegram-${chatId}`;
+function sessionKey(chatId: number, instanceId?: string): string {
+  return instanceId ? `${chatId}:${instanceId}` : `${chatId}`;
 }
 
-export function resetSession(chatId: number): string {
-  const newId = `telegram-${chatId}-${crypto.randomUUID().slice(0, 8)}`;
-  sessionOverrides.set(chatId, newId);
+export function getSessionId(chatId: number, instanceId?: string): string {
+  const key = sessionKey(chatId, instanceId);
+  const suffix = instanceId ? `-${instanceId}` : '';
+  return sessionOverrides.get(key) ?? `telegram-${chatId}${suffix}`;
+}
+
+export function resetSession(chatId: number, instanceId?: string): string {
+  const key = sessionKey(chatId, instanceId);
+  const suffix = instanceId ? `-${instanceId}` : '';
+  const newId = `telegram-${chatId}${suffix}-${crypto.randomUUID().slice(0, 8)}`;
+  sessionOverrides.set(key, newId);
   return newId;
 }
 

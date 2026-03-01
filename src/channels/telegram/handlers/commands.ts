@@ -2,7 +2,7 @@ import { Bot, Context } from 'grammy';
 import { resetSession, getSessionId, getAgent, setAgent } from '../../../services/session-manager';
 import { config } from '../config';
 
-export function registerCommands(bot: Bot, pinnedAgentPath?: string): void {
+export function registerCommands(bot: Bot, pinnedAgentPath?: string, instanceId?: string): void {
   bot.command('start', async (ctx: Context) => {
     const chatId = ctx.chat?.id ?? 0;
 
@@ -98,13 +98,13 @@ export function registerCommands(bot: Bot, pinnedAgentPath?: string): void {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
-    const newSessionId = resetSession(chatId);
+    const newSessionId = resetSession(chatId, instanceId);
     await ctx.reply(`Session reset. New session: ${newSessionId}`);
   });
 
   bot.command('status', async (ctx: Context) => {
     const chatId = ctx.chat?.id ?? 0;
-    const sessionId = getSessionId(chatId);
+    const sessionId = getSessionId(chatId, instanceId);
 
     const agentDisplay = pinnedAgentPath
       ? `${pinnedAgentPath} (pinned)`
