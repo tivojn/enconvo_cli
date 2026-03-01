@@ -287,3 +287,14 @@
   - Removed duplicate createDiscordIO from message.ts and media.ts
   - Removed dead sendFile/sendWithMarkdownFallback helpers from telegram message.ts
   - Net: -30 LOC, 2 fewer files need updating when IO behavior changes
+
+## [2026-03-02 07:51] Self-Evolve Round 31: channels test command
+- **Status:** success
+- **Tests:** 239/239 passing (25 suites)
+- **Notes:**
+  - Added `enconvo channels test --channel <type> --name <name>` command
+  - Probes Telegram getMe / Discord @me API to validate bot token
+  - Shows bot username, latency, agent path, enabled status
+  - Supports `--json` output
+  - CLI now has 12 channels subcommands
+  - Smoke tested: Connected as @Encovo_Mavis_001_bot (528ms)
