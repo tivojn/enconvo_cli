@@ -200,6 +200,7 @@ Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand w
 | Translator | `translate\|translate` | — | — |
 | Elena Content Dept | `custom_bot\|YJBEY3qHhFslKkMd6WIT` | `@Enconvo_Elena_Content_Dept_bot` | elena |
 | Vivienne Finance Dept | `custom_bot\|BVxrKvityKoIpdJjS4p7` | `@Enconvo_Vivienne_Finance_bot` | vivienne |
+| Timothy Dev Dept | `custom_bot\|pOPhKXnP1CmNjCSQZ1mK` | `@EnConvo_Timothy_Dev_bot` | timothy |
 
 #### LLM Providers Available
 
@@ -371,20 +372,41 @@ scripts/
 - All CLI commands updated: `--name` required for instance-level operations (`add`, `remove`, `login`, `logout`, `logs`, `resolve`), optional for `status`
 - `list` shows instances grouped by channel type
 - 16 files changed, 542 insertions, 312 deletions
-- Live instances (all three running, legacy `npm run dev` retired):
+- Live instances (legacy `npm run dev` retired):
   - `@Encovo_Mavis_001_bot` (mavis) → `chat_with_ai/chat` (team lead)
   - `@Enconvo_Vivienne_Finance_bot` (vivienne) → `custom_bot/BVxrKvityKoIpdJjS4p7`
   - `@Enconvo_Elena_Content_Dept_bot` (elena) → `custom_bot/YJBEY3qHhFslKkMd6WIT`
+
+### Phase 9 — Programmatic Agent Creation (2026-03-01)
+- **First agent created entirely from CLI** — no EnConvo GUI needed
+- Timothy Dev Dept (`custom_bot|pOPhKXnP1CmNjCSQZ1mK`) created by writing two JSON files:
+  - `~/.config/enconvo/installed_commands/custom_bot|{id}.json` — command definition
+  - `~/.config/enconvo/installed_preferences/custom_bot|{id}.json` — system prompt, tools, LLM config
+- **EnConvo hot-reloads** — new custom bot files picked up immediately, no app restart needed
+- Structure matches GUI-created bots: `commandType: "bot"`, `from: "custom"`, `targetCommand: "chat_with_ai|chat_command"`
+- Timothy equipped with file system tools, bash, web search, execute permission auto-approved
+- Registered as Telegram instance and running: `@EnConvo_Timothy_Dev_bot`
+- **Key discovery:** `installed_commands/` is writable for `from: "custom"` entries — the "read-only" label in the skill doc applies to store-installed extensions only
+- Backup before creation: `/tmp/enconvo-registry-backup-*.tar.gz`
+- Live instances now at 4:
+  - `@Encovo_Mavis_001_bot` (mavis) → `chat_with_ai/chat`
+  - `@Enconvo_Vivienne_Finance_bot` (vivienne) → `custom_bot/BVxrKvityKoIpdJjS4p7`
+  - `@Enconvo_Elena_Content_Dept_bot` (elena) → `custom_bot/YJBEY3qHhFslKkMd6WIT`
+  - `@EnConvo_Timothy_Dev_bot` (timothy) → `custom_bot/pOPhKXnP1CmNjCSQZ1mK`
 
 ---
 
 ## What's Next
 
+### Near-Term: Agent Creation CLI Command
+- `enconvo agents create --name "Timothy Dev Dept" --prompt "..." --tools file_system,bash,web_search` — formalize the Phase 9 pattern into a proper CLI command
+- Auto-generate random ID, stateId, write both JSON files, verify via API
+
 ### Near-Term: Agent Management
 - `enconvo agents list` — read `~/.config/enconvo/installed_commands/` to enumerate all agents/bots
 - `enconvo agents inspect --agent chat_with_ai/chat` — show command details, LLM, tools, prompt
 - `enconvo agents configure` — modify LLM routing, tool assignment, system prompt
-- **No API needed** — the full command registry lives on disk at `~/.config/enconvo/installed_commands/` (1,107 commands, read-only) with user preferences in `installed_preferences/` (read-write)
+- **No API needed** — the full command registry lives on disk at `~/.config/enconvo/installed_commands/` (1,107 commands, read-only for store extensions) with user preferences in `installed_preferences/` (read-write)
 - Reference: `enconvo-agent-cli` skill documents the complete registry schema
 
 ### Medium-Term: Agent Groups
