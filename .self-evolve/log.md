@@ -153,3 +153,13 @@
   - Wizard: 3-step flow — API settings (with connectivity probe) → channel instance setup → agent roster setup
   - Supports `--channel`, `--agent`, `--non-interactive` flags
   - CLI now has 11 top-level commands + 4 command groups
+
+## [2026-03-02 07:26] Self-Evolve Round 17: Handler core extraction + tests
+- **Status:** success
+- **Tests:** 168/168 passing (16 suites, +12 new tests)
+- **Notes:**
+  - Extracted `src/services/handler-core.ts` — shared message handling logic
+  - ChannelIO interface: sendText, sendFile, startTyping, maxMessageLength
+  - Shared: EnConvo call, response parsing, file delivery with error tracking, delegation routing, error handling
+  - Added handler-core test suite (12 tests): text response, typing lifecycle, empty response, AbortError, fetch failed, generic error, delegation routing, API options passthrough, sendParsedResponse
+  - Next: wire Telegram/Discord handlers to use handler-core (reduces ~260 LOC duplication)
