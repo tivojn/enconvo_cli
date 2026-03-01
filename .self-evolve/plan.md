@@ -4,39 +4,38 @@
 
 ## Queue (ordered by priority)
 
-### 1. [READY] Add Vitest + unit tests for core services
-- **Risk:** low
-- **Files:** package.json, vitest.config.ts, src/**/__tests__/
-- **Steps:** Install vitest → create test files → write tests → verify
-- **Validation:** `npx vitest run`
+### 7. [READY] OpenClaw parity: config get/set/unset
+- **Status:** DONE (Round 5)
+
+### 8. [READY] OpenClaw parity: agents bind/unbind
+- **Status:** DONE (Round 6)
+
+### 9. [READY] OpenClaw parity: message send
+- **Status:** DONE (Round 6)
+
+### 10. [READY] Add more OpenClaw commands (health, sessions, cron)
+- **Risk:** medium
 - **Depends on:** nothing
 
-### 2. [READY] Add ESLint + Prettier
+### 11. [READY] Improve test coverage to 60%+
+- **Risk:** low
+- **Depends on:** nothing
+
+### 12. [READY] Add ESLint + Prettier
 - **Risk:** low
 - **Files:** package.json, eslint.config.mjs, .prettierrc
 - **Steps:** Install deps → create configs → run fix → commit
 - **Validation:** `npx eslint src/`
 - **Depends on:** nothing
 
-### 3. [READY] Add .editorconfig
-- **Risk:** zero
-- **Files:** .editorconfig
-- **Depends on:** nothing
-
-### 4. [READY] Add npm scripts for test/lint/build
-- **Risk:** zero
-- **Files:** package.json
-- **Depends on:** #1, #2
-
-### 5. [READY] Update .gitignore
-- **Risk:** zero
-- **Files:** .gitignore
-- **Depends on:** nothing
-
-### 6. [READY] Add GitHub Actions CI
-- **Risk:** low
-- **Files:** .github/workflows/ci.yml
-- **Depends on:** #1, #2
-
 ## Completed
-(none yet)
+1. Add Vitest + unit tests (Round 3) — 50 tests
+2. Add .editorconfig (Round 3)
+3. Update .gitignore (Round 3)
+4. Add npm scripts for test/typecheck (Round 3)
+5. Add GitHub Actions CI (Round 4) — blocked by token scope
+6. Refactor message-splitter (Round 4) — shared utility
+7. Add config get/set/unset/path (Round 5)
+8. Add status + doctor commands (Round 5)
+9. Add agents bind/unbind (Round 6)
+10. Add message send command (Round 6)

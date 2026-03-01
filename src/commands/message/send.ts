@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import { getChannelInstance, resolveChatId, loadGlobalConfig } from '../../config/store';
+import { getChannelInstance, loadGlobalConfig } from '../../config/store';
 import { loadAgentsRoster } from '../../config/agent-store';
 import { callEnConvo } from '../../services/enconvo-client';
 import { parseResponse } from '../../services/response-parser';

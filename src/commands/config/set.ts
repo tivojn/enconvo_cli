@@ -14,7 +14,7 @@ export function registerSet(parent: Command): void {
       if (opts.json) {
         try {
           value = JSON.parse(rawValue);
-        } catch (e) {
+        } catch {
           console.error(`Invalid JSON: ${rawValue}`);
           process.exit(1);
         }

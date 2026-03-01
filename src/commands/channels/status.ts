@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { listAdapterNames, createAdapterInstance } from '../../channels/registry';
-import { loadGlobalConfig, listChannelInstances } from '../../config/store';
+import { listChannelInstances } from '../../config/store';
 import { execSync } from 'child_process';
 
 export function registerStatus(parent: Command): void {

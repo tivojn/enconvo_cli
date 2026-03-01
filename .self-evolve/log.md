@@ -57,3 +57,12 @@
   - Message send supports `--agent` flag (routes via bindings) and `--deliver` flag
   - Bindings display now shows multi-channel bindings
   - CLI now has 6 command groups: channels, agents, config, message, status, doctor
+
+## [2026-03-02 06:49] Self-Evolve Round 7: ESLint + code cleanup
+- **Status:** success
+- **Tests:** 72/72 passing (7 suites)
+- **Notes:**
+  - Added ESLint with TypeScript support (flat config)
+  - Fixed 7 unused import/variable warnings across codebase
+  - Added `npm run lint` and `npm run lint:fix` scripts
+  - Zero ESLint errors/warnings on clean run
