@@ -80,6 +80,29 @@ export function registerDoctorCommand(program: Command): void {
         }
       }
 
+      // Check for duplicate agents across instances
+      if (config) {
+        const agentPaths = new Map<string, string[]>();
+        for (const channelName of Object.keys(config.channels ?? {})) {
+          const instances = listChannelInstances(channelName);
+          for (const [name, inst] of Object.entries(instances)) {
+            if (inst.agent) {
+              const key = inst.agent;
+              if (!agentPaths.has(key)) agentPaths.set(key, []);
+              agentPaths.get(key)!.push(`${channelName}/${name}`);
+            }
+          }
+        }
+        for (const [agent, usedBy] of agentPaths) {
+          if (usedBy.length > 1) {
+            issues.push({
+              level: 'info',
+              message: `Agent "${agent}" used by multiple instances: ${usedBy.join(', ')}`,
+            });
+          }
+        }
+      }
+
       // Check agents roster
       if (fs.existsSync(AGENTS_CONFIG_PATH)) {
         try {

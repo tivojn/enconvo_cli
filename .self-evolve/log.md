@@ -113,3 +113,11 @@
   - Expanded CLI integration tests: verify ALL 11 channels + 10 agents subcommands by name and count
   - Smoke-tested: info shows real data (8 instances, 4 agents, EnConvo 2.2.23)
   - CLI now has 10 top-level commands + 4 command groups
+
+## [2026-03-02 07:07] Self-Evolve Round 13: info command, agent-store tests, doctor improvements
+- **Status:** success
+- **Tests:** 125/125 passing (13 suites, +9 new tests)
+- **Notes:**
+  - Enhanced `enconvo doctor` with duplicate agent detection across instances
+  - Expanded agent-store tests: channelBindings array, bind/unbind data logic, update logic
+  - Expanded CLI test: validates ALL 11 channels + 10 agents subcommands by name and count
