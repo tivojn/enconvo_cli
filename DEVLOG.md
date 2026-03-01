@@ -195,7 +195,7 @@ Users configure these in EnConvo's GUI. `enconvo_cli` reads them to understand w
 
 | Bot | commandKey | Telegram | Instance |
 |---|---|---|---|
-| Mavis (default) | `chat_with_ai\|chat` | — | — |
+| Mavis (team lead) | `chat_with_ai\|chat` | `@Encovo_Mavis_001_bot` | mavis |
 | OpenClaw Assistant | `openclaw\|OpenClaw` | — | — |
 | Translator | `translate\|translate` | — | — |
 | Elena Content Dept | `custom_bot\|YJBEY3qHhFslKkMd6WIT` | `@Enconvo_Elena_Content_Dept_bot` | elena |
@@ -371,7 +371,8 @@ scripts/
 - All CLI commands updated: `--name` required for instance-level operations (`add`, `remove`, `login`, `logout`, `logs`, `resolve`), optional for `status`
 - `list` shows instances grouped by channel type
 - 16 files changed, 542 insertions, 312 deletions
-- Live instances:
+- Live instances (all three running, legacy `npm run dev` retired):
+  - `@Encovo_Mavis_001_bot` (mavis) → `chat_with_ai/chat` (team lead)
   - `@Enconvo_Vivienne_Finance_bot` (vivienne) → `custom_bot/BVxrKvityKoIpdJjS4p7`
   - `@Enconvo_Elena_Content_Dept_bot` (elena) → `custom_bot/YJBEY3qHhFslKkMd6WIT`
 
@@ -408,6 +409,7 @@ scripts/
 - **Agent discovery not yet wired into CLI** — The command registry at `~/.config/enconvo/installed_commands/` has all 1,107 commands on disk. `enconvo agents list` needs to be built to read it. (See `enconvo-agent-cli` skill for schema.)
 - **In-memory state** — Agent selection and session overrides live in JS Maps. Lost on restart.
 - **LaunchAgent scripts not yet multi-instance** — `install.sh`/`uninstall.sh` still reference the single `com.enconvo.telegram-adapter` plist. Need per-instance plist generation.
+- **Legacy code still in tree** — `src/index.ts`, `config.ts`, `config.json`, `.env` are no longer used in production (all bots run via multi-instance CLI) but remain because handler factory exports depend on `config.ts` at import time. Safe to remove in a dedicated refactor.
 - **No retry on Telegram 409** — Polling instance collisions crash; launchd restarts.
 - **Media handling is one-way** — Photos/docs downloaded and path sent as text to EnConvo.
 - **Markdown rendering** — Telegram Markdown subset doesn't match GitHub-flavored markdown from EnConvo responses.
