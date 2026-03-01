@@ -1,28 +1,23 @@
 import { Context } from 'grammy';
 import { InputFile } from 'grammy';
-import * as fs from 'fs';
-import { callEnConvo } from '../../../services/enconvo-client';
-import { parseResponse } from '../../../services/response-parser';
 import { getSessionId, getAgent } from '../../../services/session-manager';
-import { loadAgentsRoster } from '../../../config/agent-store';
-import { routeToAgent } from '../../../services/agent-router';
-import { splitMessage } from '../utils/message-splitter';
+import { handleMessage, buildRosterContext, ChannelIO } from '../../../services/handler-core';
 import { startTypingIndicator } from '../middleware/typing';
+import { TELEGRAM_MAX_LENGTH } from '../../../utils/message-splitter';
+
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+
+function createTelegramIO(ctx: Context): ChannelIO {
+  return {
+    maxMessageLength: TELEGRAM_MAX_LENGTH,
+    sendText: async (text: string) => { await sendWithMarkdownFallback(ctx, text); },
+    sendFile: async (filePath: string) => { await sendFile(ctx, filePath); },
+    startTyping: () => startTypingIndicator(ctx),
+  };
+}
 
 export function createTextMessageHandler(pinnedAgentPath?: string, instanceId?: string) {
-  // Pre-load roster for delegation detection
-  const roster = loadAgentsRoster();
-  const rosterIds = roster.members.map(m => m.id);
-  // Map bot handles → agent IDs so we catch @BotUsername mentions too
-  const handleMap: Record<string, string> = {};
-  for (const m of roster.members) {
-    if (m.bindings.telegramBot) {
-      handleMap[m.bindings.telegramBot] = m.id;
-    }
-  }
-  const currentAgent = instanceId
-    ? roster.members.find(m => m.bindings.instanceName === instanceId)
-    : undefined;
+  const roster = buildRosterContext(instanceId);
 
   return async function handleTextMessage(ctx: Context): Promise<void> {
     let text = ctx.message?.text;
@@ -34,91 +29,29 @@ export function createTextMessageHandler(pinnedAgentPath?: string, instanceId?: 
       text = text.replace(new RegExp(`@${ctx.me.username}`, 'gi'), '').trim();
     }
 
-    // Bare @mention with no text — use replied-to message or nudge EnConvo with session context
+    // Bare @mention with no text — use replied-to message or nudge
     if (!text) {
       const replyText = ctx.message?.reply_to_message?.text;
-      if (replyText) {
-        text = replyText;
-      } else {
-        text = 'Hey, what can I help you with?';
-      }
+      text = replyText || 'Hey, what can I help you with?';
     }
 
     const sessionId = getSessionId(chatId, instanceId);
     const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
-    const typing = startTypingIndicator(ctx);
+    const io = createTelegramIO(ctx);
 
-    try {
-      const response = await callEnConvo(text, sessionId, agentPath);
-      typing.stop();
-
-      const parsed = parseResponse(response, rosterIds, handleMap);
-
-      if (!parsed.text && parsed.filePaths.length === 0) {
-        await ctx.reply('(EnConvo returned an empty response)');
-        return;
-      }
-
-      if (parsed.text) {
-        const chunks = splitMessage(parsed.text);
-        for (const chunk of chunks) {
-          await sendWithMarkdownFallback(ctx, chunk);
-        }
-      }
-
-      // Send files with error tracking
-      let failedFiles = 0;
-      for (const filePath of parsed.filePaths) {
-        try {
-          if (!fs.existsSync(filePath)) { failedFiles++; continue; }
-          await sendFile(ctx, filePath);
-        } catch (err) {
-          failedFiles++;
-          console.error(`Failed to send file ${filePath}:`, err);
-        }
-      }
-      if (failedFiles > 0) {
-        await ctx.reply(`(${failedFiles} file(s) could not be delivered)`);
-      }
-
-      // Handle delegations — route to target agents
-      if (parsed.delegations.length > 0 && currentAgent) {
-        for (const delegation of parsed.delegations) {
-          const delegatedResponse = await routeToAgent(
-            currentAgent.name,
-            delegation,
-            { chatId: String(chatId), channel: 'telegram', instanceId },
-          );
-          if (delegatedResponse?.text) {
-            const target = roster.members.find(m => m.id === delegation.targetAgentId);
-            const label = target ? `${target.emoji} ${target.name}` : delegation.targetAgentId;
-            const header = `[${label}]:`;
-            const chunks = splitMessage(`${header}\n${delegatedResponse.text}`);
-            for (const chunk of chunks) {
-              await sendWithMarkdownFallback(ctx, chunk);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      typing.stop();
-
-      if (err instanceof Error && err.name === 'AbortError') {
-        await ctx.reply('Request timed out. EnConvo took too long to respond.');
-      } else if (err instanceof Error && err.message.includes('fetch failed')) {
-        await ctx.reply('Cannot reach EnConvo API. Is it running on localhost:54535?');
-      } else {
-        console.error('Error handling message:', err);
-        await ctx.reply('Something went wrong while processing your message.');
-      }
-    }
+    await handleMessage(io, {
+      text,
+      sessionId,
+      agentPath,
+      channel: 'telegram',
+      chatId: String(chatId),
+      instanceId,
+    }, roster);
   };
 }
 
 // Legacy export for npm run dev path
 export const handleTextMessage = createTextMessageHandler();
-
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 
 async function sendFile(ctx: Context, filePath: string): Promise<void> {
   const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();

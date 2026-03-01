@@ -1,14 +1,15 @@
-import { Client, Message, TextChannel } from 'discord.js';
+import { Message, TextChannel } from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { callEnConvo } from '../../../services/enconvo-client';
 import { parseResponse } from '../../../services/response-parser';
 import { loadGlobalConfig } from '../../../config/store';
-import { splitMessage } from '../utils/message-splitter';
+import { sendParsedResponse, ChannelIO } from '../../../services/handler-core';
 import { sendFile } from '../utils/file-sender';
 import { startTypingIndicator } from '../middleware/typing';
 import { getSessionId } from './commands';
 import { ensureMediaDir } from '../../../utils/media-dir';
+import { DISCORD_MAX_LENGTH } from '../../../utils/message-splitter';
 
 async function downloadAttachment(url: string, filename: string): Promise<string> {
   const mediaDir = ensureMediaDir('discord');
@@ -19,15 +20,23 @@ async function downloadAttachment(url: string, filename: string): Promise<string
   return filePath;
 }
 
-export function createMediaHandler(client: Client, agentPath?: string, instanceId?: string) {
+function createDiscordIO(message: Message): ChannelIO {
+  return {
+    maxMessageLength: DISCORD_MAX_LENGTH,
+    sendText: async (text: string) => { await message.reply(text); },
+    sendFile: async (filePath: string) => { await sendFile(message, filePath); },
+    startTyping: () => startTypingIndicator(message.channel as TextChannel),
+  };
+}
+
+export function createMediaHandler(agentPath?: string, instanceId?: string) {
   return async function handleMedia(message: Message): Promise<void> {
     const channelId = message.channel.id;
     const caption = message.content || 'User sent a file';
-
-    const typing = startTypingIndicator(message.channel as TextChannel);
+    const io = createDiscordIO(message);
+    const typing = io.startTyping();
 
     try {
-      // Download all attachments
       const localPaths: string[] = [];
       for (const attachment of message.attachments.values()) {
         const filename = attachment.name ?? 'file.bin';
@@ -35,7 +44,6 @@ export function createMediaHandler(client: Client, agentPath?: string, instanceI
         localPaths.push(localPath);
       }
 
-      // Build input text with attachment references
       const attachmentRefs = localPaths
         .map(p => `[Attached file: ${p}]`)
         .join('\n');
@@ -51,34 +59,11 @@ export function createMediaHandler(client: Client, agentPath?: string, instanceI
       typing.stop();
 
       const parsed = parseResponse(response);
-      await sendParsedResponse(message, parsed);
+      await sendParsedResponse(io, parsed);
     } catch (err) {
       typing.stop();
       console.error('Error handling media:', err);
       await message.reply('Failed to process the attachment.');
     }
   };
-}
-
-async function sendParsedResponse(message: Message, parsed: { text: string; filePaths: string[] }): Promise<void> {
-  if (!parsed.text && parsed.filePaths.length === 0) {
-    await message.reply('(EnConvo returned an empty response)');
-    return;
-  }
-
-  if (parsed.text) {
-    const chunks = splitMessage(parsed.text);
-    for (const chunk of chunks) {
-      await message.reply(chunk);
-    }
-  }
-
-  for (const filePath of parsed.filePaths) {
-    try {
-      if (!fs.existsSync(filePath)) continue;
-      await sendFile(message, filePath);
-    } catch (err) {
-      console.error(`Failed to send file ${filePath}:`, err);
-    }
-  }
 }

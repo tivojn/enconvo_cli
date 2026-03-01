@@ -163,3 +163,15 @@
   - Shared: EnConvo call, response parsing, file delivery with error tracking, delegation routing, error handling
   - Added handler-core test suite (12 tests): text response, typing lifecycle, empty response, AbortError, fetch failed, generic error, delegation routing, API options passthrough, sendParsedResponse
   - Next: wire Telegram/Discord handlers to use handler-core (reduces ~260 LOC duplication)
+
+## [2026-03-02 07:28] Self-Evolve Round 18: Wire handlers to handler-core
+- **Status:** success
+- **Tests:** 168/168 passing (16 suites)
+- **Notes:**
+  - Refactored Discord message handler: removed ~60 LOC, now uses handleMessage() + ChannelIO
+  - Refactored Discord media handler: removed ~20 LOC, now uses sendParsedResponse()
+  - Refactored Telegram message handler: removed ~50 LOC, now uses handleMessage() + ChannelIO
+  - Refactored Telegram media handler: removed ~20 LOC, now uses sendParsedResponse()
+  - Core business logic (EnConvo call, parsing, file delivery, delegations, error handling) now in ONE place
+  - Channel handlers are thin wrappers: createTelegramIO / createDiscordIO implement ChannelIO
+  - Adding new channels now only requires implementing ChannelIO (sendText, sendFile, startTyping)

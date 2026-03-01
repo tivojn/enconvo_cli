@@ -41,7 +41,7 @@ export function createDiscordBot(
 
   // Wire up handlers
   const textHandler = createTextMessageHandler(client, agentPath, instanceId);
-  const mediaHandler = createMediaHandler(client, agentPath, instanceId);
+  const mediaHandler = createMediaHandler(agentPath, instanceId);
 
   client.on(Events.MessageCreate, async (message) => {
     // Ignore bot messages

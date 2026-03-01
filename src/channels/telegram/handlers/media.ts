@@ -5,9 +5,34 @@ import * as path from 'path';
 import { callEnConvo } from '../../../services/enconvo-client';
 import { parseResponse } from '../../../services/response-parser';
 import { getSessionId, getAgent } from '../../../services/session-manager';
-import { splitMessage } from '../utils/message-splitter';
+import { sendParsedResponse, ChannelIO } from '../../../services/handler-core';
 import { startTypingIndicator } from '../middleware/typing';
 import { ensureMediaDir } from '../../../utils/media-dir';
+import { TELEGRAM_MAX_LENGTH } from '../../../utils/message-splitter';
+
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+
+function createTelegramIO(ctx: Context): ChannelIO {
+  return {
+    maxMessageLength: TELEGRAM_MAX_LENGTH,
+    sendText: async (text: string) => {
+      try {
+        await ctx.reply(text, { parse_mode: 'Markdown' });
+      } catch {
+        await ctx.reply(text);
+      }
+    },
+    sendFile: async (filePath: string) => {
+      const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
+      if (IMAGE_EXTS.has(ext)) {
+        await ctx.replyWithPhoto(new InputFile(filePath));
+      } else {
+        await ctx.replyWithDocument(new InputFile(filePath));
+      }
+    },
+    startTyping: () => startTypingIndicator(ctx),
+  };
+}
 
 async function downloadFile(ctx: Context, fileId: string, extension: string): Promise<string> {
   const mediaDir = ensureMediaDir('telegram');
@@ -30,8 +55,8 @@ export function createPhotoHandler(pinnedAgentPath?: string, instanceId?: string
 
     const photo = photos[photos.length - 1];
     const caption = ctx.message?.caption ?? 'User sent a photo';
-
-    const typing = startTypingIndicator(ctx);
+    const io = createTelegramIO(ctx);
+    const typing = io.startTyping();
 
     try {
       const localPath = await downloadFile(ctx, photo.file_id, '.jpg');
@@ -43,7 +68,7 @@ export function createPhotoHandler(pinnedAgentPath?: string, instanceId?: string
       typing.stop();
 
       const parsed = parseResponse(response);
-      await sendParsedResponse(ctx, parsed);
+      await sendParsedResponse(io, parsed);
     } catch (err) {
       typing.stop();
       console.error('Error handling photo:', err);
@@ -60,8 +85,8 @@ export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: str
 
     const caption = ctx.message?.caption ?? 'User sent a document';
     const ext = path.extname(doc.file_name ?? '.bin');
-
-    const typing = startTypingIndicator(ctx);
+    const io = createTelegramIO(ctx);
+    const typing = io.startTyping();
 
     try {
       const localPath = await downloadFile(ctx, doc.file_id, ext);
@@ -73,7 +98,7 @@ export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: str
       typing.stop();
 
       const parsed = parseResponse(response);
-      await sendParsedResponse(ctx, parsed);
+      await sendParsedResponse(io, parsed);
     } catch (err) {
       typing.stop();
       console.error('Error handling document:', err);
@@ -85,35 +110,3 @@ export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: str
 // Legacy exports for npm run dev path
 export const handlePhoto = createPhotoHandler();
 export const handleDocument = createDocumentHandler();
-
-async function sendParsedResponse(ctx: Context, parsed: { text: string; filePaths: string[] }): Promise<void> {
-  if (!parsed.text && parsed.filePaths.length === 0) {
-    await ctx.reply('(EnConvo returned an empty response)');
-    return;
-  }
-
-  if (parsed.text) {
-    const chunks = splitMessage(parsed.text);
-    for (const chunk of chunks) {
-      try {
-        await ctx.reply(chunk, { parse_mode: 'Markdown' });
-      } catch {
-        await ctx.reply(chunk);
-      }
-    }
-  }
-
-  for (const filePath of parsed.filePaths) {
-    try {
-      if (!fs.existsSync(filePath)) continue;
-      const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
-      if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(ext)) {
-        await ctx.replyWithPhoto(new InputFile(filePath));
-      } else {
-        await ctx.replyWithDocument(new InputFile(filePath));
-      }
-    } catch (err) {
-      console.error(`Failed to send file ${filePath}:`, err);
-    }
-  }
-}
