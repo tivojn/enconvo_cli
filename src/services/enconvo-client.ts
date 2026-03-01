@@ -13,8 +13,9 @@ interface EnConvoMessage {
 }
 
 export interface EnConvoResponse {
-  type: string;
-  messages: EnConvoMessage[];
+  type?: string;
+  messages?: EnConvoMessage[];
+  result?: string;
 }
 
 export async function callEnConvo(inputText: string, sessionId: string, agentPath: string = 'chat_with_ai/chat'): Promise<EnConvoResponse> {

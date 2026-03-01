@@ -4,7 +4,8 @@
     "timeoutMs": 120000,
     "agents": [
       { "id": "mavis", "name": "Mavis", "path": "chat_with_ai/chat", "description": "Default AI assistant" },
-      { "id": "openclaw", "name": "OpenClaw Assistant", "path": "openclaw/OpenClaw", "description": "OpenClaw agent manager" }
+      { "id": "openclaw", "name": "OpenClaw Assistant", "path": "openclaw/OpenClaw", "description": "OpenClaw agent manager" },
+      { "id": "translate", "name": "Translator", "path": "translate/translate", "description": "Translate text between languages" }
     ],
     "defaultAgent": "mavis"
   },

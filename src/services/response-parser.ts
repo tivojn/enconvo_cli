@@ -32,6 +32,15 @@ export function parseResponse(response: EnConvoResponse): ParsedResponse {
   const textParts: string[] = [];
   const filePaths: string[] = [];
 
+  // Handle simple { "result": "..." } format (e.g. Translator)
+  if (response.result) {
+    return { text: response.result, filePaths: [] };
+  }
+
+  if (!response.messages) {
+    return { text: '', filePaths: [] };
+  }
+
   for (const msg of response.messages) {
     if (msg.role !== 'assistant') continue;
 
