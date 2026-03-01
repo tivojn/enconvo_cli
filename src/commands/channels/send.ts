@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { Bot, InputFile } from 'grammy';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { getChannelInstance, resolveChatId } from '../../config/store';
 import { callEnConvo } from '../../services/enconvo-client';
 import { parseResponse } from '../../services/response-parser';
@@ -17,6 +18,7 @@ export function registerSend(parent: Command): void {
     .option('--chat <id>', 'Chat ID to send response to')
     .option('--group <name>', 'Named group (resolves to chat ID)')
     .requiredOption('--message <text>', 'Message to send')
+    .option('--reset', 'Start a fresh conversation (new session ID)')
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       const instance = getChannelInstance(opts.channel, opts.name);
@@ -39,7 +41,9 @@ export function registerSend(parent: Command): void {
       }
 
       const config = loadGlobalConfig();
-      const sessionId = `telegram-${chatId}-${opts.name}`;
+      const sessionId = opts.reset
+        ? `telegram-${chatId}-${opts.name}-${crypto.randomUUID().slice(0, 8)}`
+        : `telegram-${chatId}-${opts.name}`;
 
       try {
         // Call EnConvo
