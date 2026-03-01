@@ -1,18 +1,20 @@
 import { Command } from 'commander';
-import { removeChannelConfig } from '../../config/store';
+import { removeChannelInstance } from '../../config/store';
 
 export function registerRemove(parent: Command): void {
   parent
     .command('remove')
-    .description('Remove or disable a channel configuration')
-    .requiredOption('--channel <name>', 'Channel name (e.g. telegram)')
+    .description('Remove or disable a channel instance')
+    .requiredOption('--channel <name>', 'Channel type (e.g. telegram)')
+    .requiredOption('--name <name>', 'Instance name (e.g. mavis)')
     .option('--delete', 'Permanently delete config (default: just disable)')
     .option('--json', 'Output as JSON')
     .action((opts) => {
-      const removed = removeChannelConfig(opts.channel, !!opts.delete);
+      const removed = removeChannelInstance(opts.channel, opts.name, !!opts.delete);
 
       const result = {
         channel: opts.channel,
+        instance: opts.name,
         action: opts.delete ? 'deleted' : 'disabled',
         success: removed,
       };
@@ -23,11 +25,11 @@ export function registerRemove(parent: Command): void {
       }
 
       if (!removed) {
-        console.log(`Channel "${opts.channel}" is not configured.`);
+        console.log(`Instance "${opts.name}" for channel "${opts.channel}" is not configured.`);
       } else if (opts.delete) {
-        console.log(`Channel "${opts.channel}" configuration deleted.`);
+        console.log(`Instance "${opts.name}" for channel "${opts.channel}" deleted.`);
       } else {
-        console.log(`Channel "${opts.channel}" disabled.`);
+        console.log(`Instance "${opts.name}" for channel "${opts.channel}" disabled.`);
       }
     });
 }

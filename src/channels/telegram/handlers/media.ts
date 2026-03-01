@@ -29,62 +29,69 @@ async function downloadFile(ctx: Context, fileId: string, extension: string): Pr
   return filePath;
 }
 
-export async function handlePhoto(ctx: Context): Promise<void> {
-  const chatId = ctx.chat?.id;
-  const photos = ctx.message?.photo;
-  if (!chatId || !photos || photos.length === 0) return;
+export function createPhotoHandler(pinnedAgentPath?: string) {
+  return async function handlePhoto(ctx: Context): Promise<void> {
+    const chatId = ctx.chat?.id;
+    const photos = ctx.message?.photo;
+    if (!chatId || !photos || photos.length === 0) return;
 
-  // Get the largest photo
-  const photo = photos[photos.length - 1];
-  const caption = ctx.message?.caption ?? 'User sent a photo';
+    const photo = photos[photos.length - 1];
+    const caption = ctx.message?.caption ?? 'User sent a photo';
 
-  const typing = startTypingIndicator(ctx);
+    const typing = startTypingIndicator(ctx);
 
-  try {
-    const localPath = await downloadFile(ctx, photo.file_id, '.jpg');
-    const inputText = `${caption}\n\n[Attached image: ${localPath}]`;
-    const sessionId = getSessionId(chatId);
-    const agent = getAgent(chatId);
+    try {
+      const localPath = await downloadFile(ctx, photo.file_id, '.jpg');
+      const inputText = `${caption}\n\n[Attached image: ${localPath}]`;
+      const sessionId = getSessionId(chatId);
+      const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
 
-    const response = await callEnConvo(inputText, sessionId, agent.path);
-    typing.stop();
+      const response = await callEnConvo(inputText, sessionId, agentPath);
+      typing.stop();
 
-    const parsed = parseResponse(response);
-    await sendParsedResponse(ctx, parsed);
-  } catch (err) {
-    typing.stop();
-    console.error('Error handling photo:', err);
-    await ctx.reply('Failed to process the photo.');
-  }
+      const parsed = parseResponse(response);
+      await sendParsedResponse(ctx, parsed);
+    } catch (err) {
+      typing.stop();
+      console.error('Error handling photo:', err);
+      await ctx.reply('Failed to process the photo.');
+    }
+  };
 }
 
-export async function handleDocument(ctx: Context): Promise<void> {
-  const chatId = ctx.chat?.id;
-  const doc = ctx.message?.document;
-  if (!chatId || !doc) return;
+export function createDocumentHandler(pinnedAgentPath?: string) {
+  return async function handleDocument(ctx: Context): Promise<void> {
+    const chatId = ctx.chat?.id;
+    const doc = ctx.message?.document;
+    if (!chatId || !doc) return;
 
-  const caption = ctx.message?.caption ?? 'User sent a document';
-  const ext = path.extname(doc.file_name ?? '.bin');
+    const caption = ctx.message?.caption ?? 'User sent a document';
+    const ext = path.extname(doc.file_name ?? '.bin');
 
-  const typing = startTypingIndicator(ctx);
+    const typing = startTypingIndicator(ctx);
 
-  try {
-    const localPath = await downloadFile(ctx, doc.file_id, ext);
-    const inputText = `${caption}\n\n[Attached file: ${localPath}]`;
-    const sessionId = getSessionId(chatId);
-    const agent = getAgent(chatId);
+    try {
+      const localPath = await downloadFile(ctx, doc.file_id, ext);
+      const inputText = `${caption}\n\n[Attached file: ${localPath}]`;
+      const sessionId = getSessionId(chatId);
+      const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
 
-    const response = await callEnConvo(inputText, sessionId, agent.path);
-    typing.stop();
+      const response = await callEnConvo(inputText, sessionId, agentPath);
+      typing.stop();
 
-    const parsed = parseResponse(response);
-    await sendParsedResponse(ctx, parsed);
-  } catch (err) {
-    typing.stop();
-    console.error('Error handling document:', err);
-    await ctx.reply('Failed to process the document.');
-  }
+      const parsed = parseResponse(response);
+      await sendParsedResponse(ctx, parsed);
+    } catch (err) {
+      typing.stop();
+      console.error('Error handling document:', err);
+      await ctx.reply('Failed to process the document.');
+    }
+  };
 }
+
+// Legacy exports for npm run dev path
+export const handlePhoto = createPhotoHandler();
+export const handleDocument = createDocumentHandler();
 
 async function sendParsedResponse(ctx: Context, parsed: { text: string; filePaths: string[] }): Promise<void> {
   if (!parsed.text && parsed.filePaths.length === 0) {

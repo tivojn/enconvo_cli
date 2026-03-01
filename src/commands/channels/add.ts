@@ -1,13 +1,15 @@
 import { Command } from 'commander';
 import { getAdapter } from '../../channels/registry';
-import { setChannelConfig, loadGlobalConfig } from '../../config/store';
+import { setChannelInstance, getChannelInstance, InstanceConfig } from '../../config/store';
 
 export function registerAdd(parent: Command): void {
   parent
     .command('add')
-    .description('Configure a channel')
-    .requiredOption('--channel <name>', 'Channel name (e.g. telegram)')
+    .description('Configure a channel instance')
+    .requiredOption('--channel <name>', 'Channel type (e.g. telegram)')
+    .requiredOption('--name <name>', 'Instance name (e.g. mavis, elena)')
     .option('--token <token>', 'Bot/API token')
+    .option('--agent <path>', 'Agent path (e.g. chat_with_ai/chat)')
     .option('--validate', 'Validate credentials before saving')
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
@@ -22,33 +24,34 @@ export function registerAdd(parent: Command): void {
         process.exit(1);
       }
 
-      const existing = loadGlobalConfig().channels[opts.channel] as Record<string, unknown> | undefined;
+      const existing = getChannelInstance(opts.channel, opts.name);
 
-      const channelConfig: Record<string, unknown> = {
-        ...(existing ?? {}),
-        enabled: true,
+      const instance: InstanceConfig = {
+        enabled: existing?.enabled ?? true,
+        token: opts.token ?? existing?.token ?? '',
+        agent: opts.agent ?? existing?.agent ?? '',
+        allowedUserIds: existing?.allowedUserIds ?? [],
+        service: existing?.service ?? {
+          plistLabel: `com.enconvo.${opts.channel}-${opts.name}`,
+          logPath: `~/Library/Logs/enconvo-${opts.channel}-${opts.name}.log`,
+          errorLogPath: `~/Library/Logs/enconvo-${opts.channel}-${opts.name}-error.log`,
+        },
       };
 
-      if (opts.token) {
-        channelConfig.token = opts.token;
-      }
-
-      // Set default service config for telegram
-      if (opts.channel === 'telegram' && !channelConfig.service) {
-        channelConfig.service = {
-          plistLabel: 'com.enconvo.telegram-adapter',
-          logPath: '~/Library/Logs/enconvo-telegram-adapter.log',
-          errorLogPath: '~/Library/Logs/enconvo-telegram-adapter-error.log',
-        };
-        if (!channelConfig.allowedUserIds) {
-          channelConfig.allowedUserIds = [];
+      if (!instance.token) {
+        const msg = 'Token is required. Use --token <token>';
+        if (opts.json) {
+          console.log(JSON.stringify({ error: msg }));
+        } else {
+          console.error(msg);
         }
+        process.exit(1);
       }
 
       // Validate if requested
       if (opts.validate) {
         console.log('Validating credentials...');
-        const result = await adapter.validateCredentials(channelConfig);
+        const result = await adapter.validateCredentials({ token: instance.token });
         if (!result.valid) {
           const msg = `Validation failed: ${result.error}`;
           if (opts.json) {
@@ -60,13 +63,16 @@ export function registerAdd(parent: Command): void {
         }
       }
 
-      setChannelConfig(opts.channel, channelConfig);
+      setChannelInstance(opts.channel, opts.name, instance);
 
-      const output = { channel: opts.channel, action: 'added', config: channelConfig };
+      const output = { channel: opts.channel, instance: opts.name, action: existing ? 'updated' : 'added', config: instance };
       if (opts.json) {
         console.log(JSON.stringify(output, null, 2));
       } else {
-        console.log(`Channel "${opts.channel}" configured and enabled.`);
+        console.log(`Instance "${opts.name}" for channel "${opts.channel}" configured and enabled.`);
+        if (instance.agent) {
+          console.log(`  Agent: ${instance.agent}`);
+        }
         console.log(`Config saved to ~/.enconvo_cli/config.json`);
       }
     });

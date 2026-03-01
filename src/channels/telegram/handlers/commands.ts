@@ -2,36 +2,69 @@ import { Bot, Context } from 'grammy';
 import { resetSession, getSessionId, getAgent, setAgent } from '../../../services/session-manager';
 import { config } from '../config';
 
-export function registerCommands(bot: Bot): void {
+export function registerCommands(bot: Bot, pinnedAgentPath?: string): void {
   bot.command('start', async (ctx: Context) => {
     const chatId = ctx.chat?.id ?? 0;
-    const agent = getAgent(chatId);
-    await ctx.reply(
-      `Welcome to EnConvo! Currently talking to: ${agent.name}\n\n` +
-      'Commands:\n' +
-      '/agent - Switch between AI agents\n' +
-      '/reset - Start a new conversation\n' +
-      '/status - Check connection status\n' +
-      '/help - Show this help message'
-    );
+
+    if (pinnedAgentPath) {
+      await ctx.reply(
+        `Welcome! This bot is dedicated to agent: ${pinnedAgentPath}\n\n` +
+        'Commands:\n' +
+        '/reset - Start a new conversation\n' +
+        '/status - Check connection status\n' +
+        '/help - Show this help message'
+      );
+    } else {
+      const agent = getAgent(chatId);
+      await ctx.reply(
+        `Welcome to EnConvo! Currently talking to: ${agent.name}\n\n` +
+        'Commands:\n' +
+        '/agent - Switch between AI agents\n' +
+        '/reset - Start a new conversation\n' +
+        '/status - Check connection status\n' +
+        '/help - Show this help message'
+      );
+    }
   });
 
   bot.command('help', async (ctx: Context) => {
-    await ctx.reply(
-      'EnConvo Telegram Bot\n\n' +
-      'Just send me any text message and I\'ll forward it to EnConvo AI.\n' +
-      'You can also send photos or documents.\n\n' +
-      'Commands:\n' +
-      '/agent - List agents or switch (e.g. /agent openclaw)\n' +
-      '/reset - Start a fresh conversation (clears context)\n' +
-      '/status - Check if EnConvo is reachable\n' +
-      '/help - Show this message'
-    );
+    if (pinnedAgentPath) {
+      await ctx.reply(
+        'EnConvo Telegram Bot (dedicated instance)\n\n' +
+        `Agent: ${pinnedAgentPath}\n\n` +
+        'Just send me any text message and I\'ll forward it to the agent.\n' +
+        'You can also send photos or documents.\n\n' +
+        'Commands:\n' +
+        '/reset - Start a fresh conversation (clears context)\n' +
+        '/status - Check if EnConvo is reachable\n' +
+        '/help - Show this message'
+      );
+    } else {
+      await ctx.reply(
+        'EnConvo Telegram Bot\n\n' +
+        'Just send me any text message and I\'ll forward it to EnConvo AI.\n' +
+        'You can also send photos or documents.\n\n' +
+        'Commands:\n' +
+        '/agent - List agents or switch (e.g. /agent openclaw)\n' +
+        '/reset - Start a fresh conversation (clears context)\n' +
+        '/status - Check if EnConvo is reachable\n' +
+        '/help - Show this message'
+      );
+    }
   });
 
   bot.command(['agent', 'agents'], async (ctx: Context) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
+
+    // Pinned mode — no switching allowed
+    if (pinnedAgentPath) {
+      await ctx.reply(
+        `This bot is dedicated to agent: ${pinnedAgentPath}\n` +
+        'Agent switching is not available for dedicated instances.'
+      );
+      return;
+    }
 
     const args = ctx.message?.text?.split(/\s+/).slice(1) ?? [];
     const current = getAgent(chatId);
@@ -72,7 +105,10 @@ export function registerCommands(bot: Bot): void {
   bot.command('status', async (ctx: Context) => {
     const chatId = ctx.chat?.id ?? 0;
     const sessionId = getSessionId(chatId);
-    const agent = getAgent(chatId);
+
+    const agentDisplay = pinnedAgentPath
+      ? `${pinnedAgentPath} (pinned)`
+      : getAgent(chatId).name;
 
     try {
       const res = await fetch(`${config.enconvo.url}/health`, { signal: AbortSignal.timeout(5000) });
@@ -80,7 +116,7 @@ export function registerCommands(bot: Bot): void {
         await ctx.reply(
           `Status: Connected\n` +
           `EnConvo: ${config.enconvo.url}\n` +
-          `Agent: ${agent.name}\n` +
+          `Agent: ${agentDisplay}\n` +
           `Session: ${sessionId}`
         );
       } else {

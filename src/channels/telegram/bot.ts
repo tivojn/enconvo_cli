@@ -1,38 +1,58 @@
 import { Bot } from 'grammy';
 import { config } from './config';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, createAuthMiddleware } from './middleware/auth';
 import { registerCommands } from './handlers/commands';
-import { handleTextMessage } from './handlers/message';
-import { handlePhoto, handleDocument } from './handlers/media';
+import { handleTextMessage, createTextMessageHandler } from './handlers/message';
+import { handlePhoto, handleDocument, createPhotoHandler, createDocumentHandler } from './handlers/media';
 
-export function createBot(): Bot {
-  const bot = new Bot(config.botToken);
+/**
+ * Create a Grammy bot instance.
+ *
+ * - With no args: legacy mode (uses config.ts, session-manager for multi-agent switching)
+ * - With token + agentPath: pinned mode (one bot, one agent, no switching)
+ */
+export function createBot(token?: string, agentPath?: string, allowedUserIds?: number[]): Bot {
+  const botToken = token ?? config.botToken;
+  const bot = new Bot(botToken);
 
-  // Auth middleware — runs before all handlers
-  bot.use(authMiddleware);
+  if (agentPath) {
+    // Pinned mode — dedicated instance
+    bot.use(createAuthMiddleware(allowedUserIds));
+    registerCommands(bot, agentPath);
 
-  // Commands
-  registerCommands(bot);
+    bot.on('message:text').filter(
+      (ctx) => /^\/\w+/.test(ctx.message.text),
+      async (ctx) => {
+        await ctx.reply(
+          `Unknown command: ${ctx.message.text.split(/\s+/)[0]}\n` +
+          'Type /help to see available commands.'
+        );
+      },
+    );
 
-  // Block unrecognized commands from being forwarded to EnConvo
-  bot.on('message:text').filter(
-    (ctx) => /^\/\w+/.test(ctx.message.text),
-    async (ctx) => {
-      await ctx.reply(
-        `Unknown command: ${ctx.message.text.split(/\s+/)[0]}\n` +
-        'Type /help to see available commands.'
-      );
-    },
-  );
+    bot.on('message:photo', createPhotoHandler(agentPath));
+    bot.on('message:document', createDocumentHandler(agentPath));
+    bot.on('message:text', createTextMessageHandler(agentPath));
+  } else {
+    // Legacy mode — multi-agent switching via session-manager
+    bot.use(authMiddleware);
+    registerCommands(bot);
 
-  // Media handlers
-  bot.on('message:photo', handlePhoto);
-  bot.on('message:document', handleDocument);
+    bot.on('message:text').filter(
+      (ctx) => /^\/\w+/.test(ctx.message.text),
+      async (ctx) => {
+        await ctx.reply(
+          `Unknown command: ${ctx.message.text.split(/\s+/)[0]}\n` +
+          'Type /help to see available commands.'
+        );
+      },
+    );
 
-  // Text messages (catch-all, must be last)
-  bot.on('message:text', handleTextMessage);
+    bot.on('message:photo', handlePhoto);
+    bot.on('message:document', handleDocument);
+    bot.on('message:text', handleTextMessage);
+  }
 
-  // Error handler
   bot.catch((err) => {
     console.error('Bot error:', err);
   });

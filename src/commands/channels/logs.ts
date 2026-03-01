@@ -1,5 +1,6 @@
 import { Command } from 'commander';
-import { getAdapter } from '../../channels/registry';
+import { createAdapterInstance } from '../../channels/registry';
+import { getChannelInstance } from '../../config/store';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -11,25 +12,34 @@ function expandHome(p: string): string {
 export function registerLogs(parent: Command): void {
   parent
     .command('logs')
-    .description('Tail channel log files')
-    .requiredOption('--channel <name>', 'Channel name (e.g. telegram)')
+    .description('Tail channel instance log files')
+    .requiredOption('--channel <name>', 'Channel type (e.g. telegram)')
+    .requiredOption('--name <name>', 'Instance name (e.g. mavis)')
     .option('--lines <n>', 'Number of lines to show', '50')
     .option('--follow', 'Follow log output (tail -f)', false)
     .option('--error', 'Show error log instead of stdout log')
     .option('--json', 'Output as JSON')
     .action((opts) => {
-      const adapter = getAdapter(opts.channel);
-      if (!adapter) {
-        if (opts.json) {
-          console.log(JSON.stringify({ error: `Unknown channel: ${opts.channel}` }));
-        } else {
-          console.error(`Unknown channel: ${opts.channel}`);
-        }
-        process.exit(1);
-      }
+      // Try to get log path from instance config first, fall back to adapter default
+      const instanceConfig = getChannelInstance(opts.channel, opts.name);
+      let logPath: string;
 
-      const logPaths = adapter.getLogPaths();
-      const logPath = expandHome(opts.error ? logPaths.stderr : logPaths.stdout);
+      if (instanceConfig?.service) {
+        const raw = opts.error ? instanceConfig.service.errorLogPath : instanceConfig.service.logPath;
+        logPath = expandHome(raw);
+      } else {
+        const adapter = createAdapterInstance(opts.channel, opts.name);
+        if (!adapter) {
+          if (opts.json) {
+            console.log(JSON.stringify({ error: `Unknown channel: ${opts.channel}` }));
+          } else {
+            console.error(`Unknown channel: ${opts.channel}`);
+          }
+          process.exit(1);
+        }
+        const logPaths = adapter.getLogPaths();
+        logPath = opts.error ? logPaths.stderr : logPaths.stdout;
+      }
 
       if (!fs.existsSync(logPath)) {
         const msg = `Log file not found: ${logPath}`;
@@ -42,7 +52,6 @@ export function registerLogs(parent: Command): void {
       }
 
       if (opts.json) {
-        // Read last N lines as JSON
         try {
           const output = execSync(`tail -n ${opts.lines} "${logPath}"`, { encoding: 'utf-8' });
           console.log(JSON.stringify({ path: logPath, lines: output.split('\n').filter(Boolean) }));
@@ -52,7 +61,6 @@ export function registerLogs(parent: Command): void {
         return;
       }
 
-      // Interactive tail
       console.log(`Log: ${logPath}\n`);
       const followFlag = opts.follow ? '-f' : '';
       try {

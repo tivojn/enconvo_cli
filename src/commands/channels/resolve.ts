@@ -1,16 +1,17 @@
 import { Command } from 'commander';
-import { getAdapter } from '../../channels/registry';
+import { createAdapterInstance } from '../../channels/registry';
 
 export function registerResolve(parent: Command): void {
   parent
     .command('resolve')
     .description('Resolve a user or group identifier')
-    .requiredOption('--channel <name>', 'Channel name (e.g. telegram)')
+    .requiredOption('--channel <name>', 'Channel type (e.g. telegram)')
+    .requiredOption('--name <name>', 'Instance name (e.g. mavis)')
     .argument('<identifier>', 'User/group identifier to resolve (e.g. @username, chat ID)')
     .option('--kind <kind>', 'Type hint (user, group, channel)', 'user')
     .option('--json', 'Output as JSON')
     .action(async (identifier: string, opts) => {
-      const adapter = getAdapter(opts.channel);
+      const adapter = createAdapterInstance(opts.channel, opts.name);
       if (!adapter) {
         if (opts.json) {
           console.log(JSON.stringify({ error: `Unknown channel: ${opts.channel}` }));
@@ -28,7 +29,7 @@ export function registerResolve(parent: Command): void {
       }
 
       if (!result.found) {
-        console.log(`Could not resolve "${identifier}" on ${opts.channel}.`);
+        console.log(`Could not resolve "${identifier}" on ${opts.channel}/${opts.name}.`);
         if (result.details?.error) console.log(`  Reason: ${result.details.error}`);
       } else {
         console.log(`Resolved: ${result.displayName ?? identifier}`);
