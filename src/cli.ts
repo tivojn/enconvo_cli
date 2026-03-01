@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { registerChannelsCommands } from './commands/channels/index';
 import { registerAgentsCommands } from './commands/agents/index';
 import { registerConfigCommands } from './commands/config/index';
+import { registerMessageCommands } from './commands/message/index';
 import { registerStatusCommand } from './commands/status';
 import { registerDoctorCommand } from './commands/doctor';
 
@@ -16,6 +17,7 @@ program
 registerChannelsCommands(program);
 registerAgentsCommands(program);
 registerConfigCommands(program);
+registerMessageCommands(program);
 registerStatusCommand(program);
 registerDoctorCommand(program);
 

@@ -46,3 +46,14 @@
   - Added `enconvo doctor` command (config validation, workspace checks, connectivity)
   - Created `src/utils/dot-path.ts` utility (getByPath, setByPath, unsetByPath, parseValue)
   - CLI now has 5 command groups: channels, agents, config, status, doctor
+
+## [2026-03-02 06:47] Self-Evolve Round 6: bind/unbind + message command group
+- **Status:** success
+- **Tests:** 72/72 passing (7 suites)
+- **Notes:**
+  - Added `enconvo agents bind/unbind` for multi-channel bindings (OpenClaw parity)
+  - Extended AgentBindings with `channelBindings[]` array for multi-channel support
+  - Added `enconvo message send` command (OpenClaw-compatible interface)
+  - Message send supports `--agent` flag (routes via bindings) and `--deliver` flag
+  - Bindings display now shows multi-channel bindings
+  - CLI now has 6 command groups: channels, agents, config, message, status, doctor

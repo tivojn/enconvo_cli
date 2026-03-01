@@ -2,6 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AGENTS_CONFIG_PATH, ENCONVO_CLI_DIR } from './paths';
 
+export interface ChannelBinding {
+  channel: string;
+  instanceName: string;
+  botHandle?: string;
+}
+
 export interface AgentBindings {
   /** EnConvo agent path, e.g. "chat_with_ai/chat" or "custom_bot/BVxrKvityKoIpdJjS4p7" */
   agentPath: string;
@@ -9,6 +15,8 @@ export interface AgentBindings {
   telegramBot: string;
   /** Instance name in config.json, e.g. "mavis" */
   instanceName: string;
+  /** Multi-channel bindings (optional, extends legacy single-binding) */
+  channelBindings?: ChannelBinding[];
 }
 
 export interface AgentMember {
@@ -124,6 +132,46 @@ export function removeAgent(id: string): boolean {
   const idx = roster.members.findIndex((m) => m.id === id);
   if (idx === -1) return false;
   roster.members.splice(idx, 1);
+  saveAgentsRoster(roster);
+  return true;
+}
+
+export function bindAgent(id: string, binding: ChannelBinding): AgentMember | undefined {
+  const roster = loadAgentsRoster();
+  const member = roster.members.find((m) => m.id === id);
+  if (!member) return undefined;
+
+  if (!member.bindings.channelBindings) {
+    member.bindings.channelBindings = [];
+  }
+
+  // Remove existing binding for same channel+instance
+  member.bindings.channelBindings = member.bindings.channelBindings.filter(
+    (b) => !(b.channel === binding.channel && b.instanceName === binding.instanceName),
+  );
+  member.bindings.channelBindings.push(binding);
+
+  // Keep legacy fields in sync for Telegram
+  if (binding.channel === 'telegram') {
+    member.bindings.instanceName = binding.instanceName;
+    if (binding.botHandle) member.bindings.telegramBot = binding.botHandle;
+  }
+
+  saveAgentsRoster(roster);
+  return member;
+}
+
+export function unbindAgent(id: string, channel: string, instanceName: string): boolean {
+  const roster = loadAgentsRoster();
+  const member = roster.members.find((m) => m.id === id);
+  if (!member || !member.bindings.channelBindings) return false;
+
+  const before = member.bindings.channelBindings.length;
+  member.bindings.channelBindings = member.bindings.channelBindings.filter(
+    (b) => !(b.channel === channel && b.instanceName === instanceName),
+  );
+  if (member.bindings.channelBindings.length === before) return false;
+
   saveAgentsRoster(roster);
   return true;
 }

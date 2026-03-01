@@ -38,6 +38,16 @@ export function registerBindings(parent: Command): void {
         console.log(`  ${b.emoji} ${b.name} (${b.id})`);
         console.log(`    EnConvo:  ${b.agentPath} → ${b.preferenceKey}`);
         console.log(`    Telegram: ${b.telegramBot} → instance "${b.instanceName}"`);
+
+        // Show multi-channel bindings if present
+        const member = roster.members.find(m => m.id === b.id);
+        if (member?.bindings.channelBindings?.length) {
+          for (const cb of member.bindings.channelBindings) {
+            if (cb.channel === 'telegram') continue; // Already shown above
+            const handle = cb.botHandle ? ` (${cb.botHandle})` : '';
+            console.log(`    ${cb.channel}: instance "${cb.instanceName}"${handle}`);
+          }
+        }
         console.log();
       }
     });
