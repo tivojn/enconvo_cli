@@ -1,0 +1,9 @@
+{
+  "enconvo": {
+    "url": "http://localhost:54535",
+    "timeoutMs": 120000
+  },
+  "telegram": {
+    "allowedUserIds": []
+  }
+}

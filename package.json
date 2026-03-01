@@ -1,0 +1,22 @@
+{
+  "name": "enconvo-telegram-adapter",
+  "version": "1.0.0",
+  "description": "Telegram adapter for EnConvo AI",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "grammy": "^1.40.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
