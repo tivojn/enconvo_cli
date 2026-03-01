@@ -214,3 +214,13 @@
   - Added `enconvo reset` command (--channel, --agents, --all)
   - Auto-backup before reset to `~/.enconvo_cli/backups/`
   - CLI now has 15 top-level commands + 4 command groups
+
+## [2026-03-02 07:34] Self-Evolve Round 23: Legacy migration tests
+- **Status:** success
+- **Tests:** 199/199 passing (19 suites, +6 new tests)
+- **Notes:**
+  - Added `src/config/__tests__/migration.test.ts` (6 tests)
+  - Tests: migrateFromLegacy with project-local config.json + .env
+  - Tests: skip when global exists, skip when no legacy, handle missing .env
+  - Tests: v1 flat channels auto-migrate on load, v2 not re-migrated
+  - All config store functions now have comprehensive integration tests
