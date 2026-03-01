@@ -79,7 +79,7 @@ describe('CLI command registration', () => {
     registerAgentsCommands(program);
 
     const subs = getSubcommandNames(program, 'agents');
-    const expected = ['list', 'add', 'delete', 'set-identity', 'sync', 'bindings', 'bind', 'unbind', 'refresh', 'check'];
+    const expected = ['list', 'add', 'delete', 'set-identity', 'sync', 'bindings', 'bind', 'unbind', 'refresh', 'check', 'test'];
     for (const cmd of expected) {
       expect(subs).toContain(cmd);
     }

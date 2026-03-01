@@ -9,6 +9,7 @@ import { registerBind } from './bind';
 import { registerUnbind } from './unbind';
 import { registerRefresh } from './refresh';
 import { registerCheck } from './check';
+import { registerTest } from './test';
 
 export function registerAgentsCommands(program: Command): void {
   const agents = program
@@ -25,4 +26,5 @@ export function registerAgentsCommands(program: Command): void {
   registerUnbind(agents);
   registerRefresh(agents);
   registerCheck(agents);
+  registerTest(agents);
 }
