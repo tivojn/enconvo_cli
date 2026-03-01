@@ -1,0 +1,111 @@
+import { Command } from 'commander';
+import { Bot } from 'grammy';
+import * as crypto from 'crypto';
+import { loadAgentsRoster, AgentMember } from '../../config/agent-store';
+import { getChannelInstance, loadGlobalConfig } from '../../config/store';
+import { callEnConvo } from '../../services/enconvo-client';
+import { parseResponse } from '../../services/response-parser';
+import { TEAM_KB_DIR } from '../../config/paths';
+
+const REFRESH_MESSAGE = `Team files updated. Re-read all workspace files and team KB now: IDENTITY.md, SOUL.md, AGENTS.md, and ${TEAM_KB_DIR}/. Acknowledge briefly.`;
+
+export function registerRefresh(parent: Command): void {
+  parent
+    .command('refresh')
+    .description('Notify agents to re-read their workspace files and team KB')
+    .requiredOption('--chat <id>', 'Telegram chat ID to deliver responses to')
+    .option('--agent <id>', 'Refresh a specific agent only')
+    .option('--reset', 'Generate a new session ID (fresh conversation)')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => {
+      const roster = loadAgentsRoster();
+
+      if (roster.members.length === 0) {
+        outputError(opts, 'No agents configured. Run "enconvo agents add" first.');
+        process.exit(1);
+      }
+
+      let targets: AgentMember[];
+      if (opts.agent) {
+        const agent = roster.members.find((m) => m.id === opts.agent);
+        if (!agent) {
+          outputError(opts, `Agent "${opts.agent}" not found`);
+          process.exit(1);
+        }
+        targets = [agent];
+      } else {
+        targets = roster.members;
+      }
+
+      const config = loadGlobalConfig();
+      const results: Array<{ id: string; status: string; response?: string }> = [];
+
+      for (const agent of targets) {
+        const instanceName = agent.bindings.instanceName;
+        const instance = getChannelInstance('telegram', instanceName);
+
+        if (!instance) {
+          results.push({ id: agent.id, status: `skipped — no telegram instance "${instanceName}"` });
+          if (!opts.json) {
+            console.log(`  ${agent.emoji} ${agent.name}: skipped — instance "${instanceName}" not found`);
+          }
+          continue;
+        }
+
+        // Build session ID — use reset flag for fresh session
+        const sessionId = opts.reset
+          ? `telegram-${opts.chat}-${instanceName}-${crypto.randomUUID().slice(0, 8)}`
+          : `telegram-${opts.chat}-${instanceName}`;
+
+        try {
+          if (!opts.json) {
+            console.log(`  ${agent.emoji} ${agent.name}: sending refresh...`);
+          }
+
+          const response = await callEnConvo(REFRESH_MESSAGE, sessionId, instance.agent, {
+            url: config.enconvo.url,
+            timeoutMs: config.enconvo.timeoutMs,
+          });
+
+          const parsed = parseResponse(response);
+          const responseText = parsed.text || '(no text response)';
+
+          // Deliver response to Telegram chat
+          const bot = new Bot(instance.token);
+          const label = `${agent.emoji} ${agent.name}`;
+
+          try {
+            await bot.api.sendMessage(opts.chat, `${label}:\n${responseText}`, { parse_mode: 'Markdown' });
+          } catch {
+            await bot.api.sendMessage(opts.chat, `${label}:\n${responseText}`);
+          }
+
+          results.push({ id: agent.id, status: 'refreshed', response: responseText });
+          if (!opts.json) {
+            console.log(`  ${agent.emoji} ${agent.name}: refreshed ✓`);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          results.push({ id: agent.id, status: `error: ${msg}` });
+          if (!opts.json) {
+            console.error(`  ${agent.emoji} ${agent.name}: error — ${msg}`);
+          }
+        }
+      }
+
+      if (opts.json) {
+        console.log(JSON.stringify({ action: 'refresh', chat: opts.chat, reset: !!opts.reset, results }, null, 2));
+      } else {
+        const refreshed = results.filter((r) => r.status === 'refreshed').length;
+        console.log(`\nRefreshed ${refreshed}/${targets.length} agents.`);
+      }
+    });
+}
+
+function outputError(opts: { json?: boolean }, msg: string): void {
+  if (opts.json) {
+    console.log(JSON.stringify({ error: msg }));
+  } else {
+    console.error(`Error: ${msg}`);
+  }
+}

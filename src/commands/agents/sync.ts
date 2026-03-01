@@ -44,7 +44,7 @@ export function registerSync(parent: Command): void {
       const results: Array<{ id: string; preferenceKey: string; status: string; prompt?: string }> = [];
 
       for (const agent of targets) {
-        const prompt = generatePrompt(agent, roster);
+        const prompt = generatePrompt(agent);
         const prefFile = path.join(ENCONVO_PREFERENCES_DIR, `${agent.preferenceKey}.json`);
 
         if (opts.dryRun) {

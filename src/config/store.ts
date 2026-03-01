@@ -25,6 +25,12 @@ export interface ChannelWithInstances {
   instances: Record<string, InstanceConfig>;
 }
 
+export interface EnConvoAppInfo {
+  version: string;
+  build: number;
+  lastChecked: string;
+}
+
 export interface GlobalConfig {
   version: number;
   enconvo: {
@@ -34,6 +40,7 @@ export interface GlobalConfig {
     defaultAgent: string;
   };
   channels: Record<string, ChannelWithInstances>;
+  enconvoApp?: EnConvoAppInfo;
 }
 
 const DEFAULT_CONFIG: GlobalConfig = {
@@ -108,6 +115,7 @@ export function loadGlobalConfig(): GlobalConfig {
         defaultAgent: raw.enconvo?.defaultAgent ?? DEFAULT_CONFIG.enconvo.defaultAgent,
       },
       channels: migrateChannelsToInstances(raw),
+      enconvoApp: raw.enconvoApp,
     };
 
     // Persist migration if version was old
