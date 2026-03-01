@@ -237,7 +237,8 @@ src/
 │   │   ├── logout.ts               # Stop service
 │   │   ├── capabilities.ts         # Show supported features
 │   │   ├── resolve.ts              # Resolve user/group identifier
-│   │   └── logs.ts                 # Tail log files
+│   │   ├── logs.ts                 # Tail log files
+│   │   └── send.ts                 # Send message through bot, deliver response to chat
 │   └── agents/
 │       ├── index.ts                # Registers all agent subcommands
 │       ├── list.ts                 # List team agents (--bindings, --json)
@@ -548,6 +549,27 @@ OpenClaw-inspired agent team system. Bots now know about each other, have person
 
 Files: 13 changed, 806 insertions, 1 deletion.
 
+### Phase 10.1 — `channels send` Command (commit `5ae891f`)
+
+CLI-driven bot messaging — send a message through any bot instance and deliver the response to a Telegram chat. This closes the loop: you can now interact with agents from the terminal and see the conversation in Telegram.
+
+```bash
+enconvo channels send --channel telegram --name vivienne --chat "-5063546642" --message "where is your portrait, show me"
+```
+
+**Flow:**
+1. Looks up the channel instance (token + agent path) from `config.json`
+2. Calls EnConvo API with the message and a session ID (`telegram-{chatId}-{instanceName}`)
+3. Parses the response (text + file paths)
+4. Sends text to the Telegram chat via bot API (Markdown with fallback)
+5. Sends any files as photos (images) or documents (other)
+
+**Options:** `--channel`, `--name`, `--chat`, `--message`, `--json`
+
+**Why this matters:** Previously, testing agent responses required either using Telegram directly or calling the EnConvo API via curl (which doesn't show up in Telegram). This command does both — calls the agent AND delivers the response to the chat, so the conversation is visible in the group.
+
+Files: 2 changed, 107 insertions.
+
 ---
 
 ## What's Next
@@ -664,6 +686,10 @@ enconvo channels add --channel telegram --name mavis --token <token> --agent cha
 # Start/stop instances
 enconvo channels login --channel telegram --name vivienne -f   # foreground
 enconvo channels logout --channel telegram --name vivienne
+
+# Send a message through a bot (response appears in Telegram)
+enconvo channels send --channel telegram --name vivienne --chat "-5063546642" --message "hello"
+enconvo channels send --channel telegram --name timothy --chat "-5063546642" --message "what's your role" --json
 
 # Monitor
 enconvo channels status --channel telegram
