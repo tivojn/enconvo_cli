@@ -14,6 +14,7 @@ import { registerConfigureCommand } from './commands/configure';
 import { registerExportCommand, registerImportCommand } from './commands/export-import';
 import { registerVersionCommand } from './commands/version';
 import { registerResetCommand } from './commands/reset';
+import { registerCompletionsCommand } from './commands/completions';
 
 const program = new Command();
 
@@ -37,5 +38,6 @@ registerExportCommand(program);
 registerImportCommand(program);
 registerVersionCommand(program);
 registerResetCommand(program);
+registerCompletionsCommand(program);
 
 program.parse();
