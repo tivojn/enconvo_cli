@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getAdapter } from '../../channels/registry';
 import { setChannelInstance, getChannelInstance, InstanceConfig } from '../../config/store';
+import { outputError } from '../../utils/command-output';
 
 export function registerAdd(parent: Command): void {
   parent
@@ -15,12 +16,7 @@ export function registerAdd(parent: Command): void {
     .action(async (opts) => {
       const adapter = getAdapter(opts.channel);
       if (!adapter) {
-        const msg = `Unknown channel: ${opts.channel}`;
-        if (opts.json) {
-          console.log(JSON.stringify({ error: msg }));
-        } else {
-          console.error(msg);
-        }
+        outputError(opts, `Unknown channel: ${opts.channel}`);
         process.exit(1);
       }
 
@@ -39,12 +35,7 @@ export function registerAdd(parent: Command): void {
       };
 
       if (!instance.token) {
-        const msg = 'Token is required. Use --token <token>';
-        if (opts.json) {
-          console.log(JSON.stringify({ error: msg }));
-        } else {
-          console.error(msg);
-        }
+        outputError(opts, 'Token is required. Use --token <token>');
         process.exit(1);
       }
 
@@ -53,12 +44,7 @@ export function registerAdd(parent: Command): void {
         console.log('Validating credentials...');
         const result = await adapter.validateCredentials({ token: instance.token });
         if (!result.valid) {
-          const msg = `Validation failed: ${result.error}`;
-          if (opts.json) {
-            console.log(JSON.stringify({ error: msg }));
-          } else {
-            console.error(msg);
-          }
+          outputError(opts, `Validation failed: ${result.error}`);
           process.exit(1);
         }
       }
