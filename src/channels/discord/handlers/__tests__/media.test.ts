@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockCallEnConvo, mockParseResponse, mockStop } = vi.hoisted(() => ({
-  mockCallEnConvo: vi.fn().mockResolvedValue('AI response text'),
-  mockParseResponse: vi.fn().mockReturnValue({ text: 'parsed', filePaths: [] }),
-  mockStop: vi.fn(),
+const { mockHandleMessage } = vi.hoisted(() => ({
+  mockHandleMessage: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('fs', async () => {
@@ -18,16 +16,8 @@ vi.mock('../../../../config/store', () => ({
 }));
 
 vi.mock('../../../../services/handler-core', () => ({
-  sendParsedResponse: vi.fn(),
-  buildRosterContext: vi.fn(),
-}));
-
-vi.mock('../../../../services/enconvo-client', () => ({
-  callEnConvo: (...args: unknown[]) => mockCallEnConvo(...args),
-}));
-
-vi.mock('../../../../services/response-parser', () => ({
-  parseResponse: (...args: unknown[]) => mockParseResponse(...args),
+  handleMessage: (...args: unknown[]) => mockHandleMessage(...args),
+  buildRosterContext: vi.fn().mockReturnValue({ rosterIds: [], handleMap: {}, members: [] }),
 }));
 
 vi.mock('../../utils/file-sender', () => ({
@@ -35,7 +25,7 @@ vi.mock('../../utils/file-sender', () => ({
     maxMessageLength: 2000,
     sendText: vi.fn(),
     sendFile: vi.fn(),
-    startTyping: vi.fn().mockReturnValue({ stop: mockStop }),
+    startTyping: vi.fn().mockReturnValue({ stop: vi.fn() }),
   }),
 }));
 
@@ -48,7 +38,6 @@ vi.mock('../../../../utils/media-dir', () => ({
 }));
 
 import { createMediaHandler } from '../media';
-import { sendParsedResponse } from '../../../../services/handler-core';
 
 function makeMessage(overrides: Record<string, unknown> = {}): any {
   const attachments = new Map();
@@ -68,23 +57,27 @@ function addAttachment(msg: any, name: string, url: string) {
 describe('createMediaHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock global fetch for attachment download
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
     } as Response);
   });
 
-  it('downloads attachments and calls callEnConvo', async () => {
+  it('downloads attachments and calls handleMessage', async () => {
     const handler = createMediaHandler('custom_bot/abc', 'mavis');
     const msg = makeMessage();
     addAttachment(msg, 'photo.jpg', 'https://cdn.discord.com/photo.jpg');
     await handler(msg);
 
     expect(globalThis.fetch).toHaveBeenCalledWith('https://cdn.discord.com/photo.jpg');
-    expect(mockCallEnConvo).toHaveBeenCalledWith(
-      expect.stringContaining('Check this file'),
-      'discord-ch1',
-      'custom_bot/abc',
+    expect(mockHandleMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        text: expect.stringContaining('Check this file'),
+        agentPath: 'custom_bot/abc',
+        channel: 'discord',
+        chatId: 'ch1',
+        instanceId: 'mavis',
+      }),
       expect.anything(),
     );
   });
@@ -95,9 +88,9 @@ describe('createMediaHandler', () => {
     addAttachment(msg, 'doc.pdf', 'https://cdn.discord.com/doc.pdf');
     await handler(msg);
 
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('[Attached file:');
-    expect(inputText).toContain('doc.pdf');
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.text).toContain('[Attached file:');
+    expect(ctx.text).toContain('doc.pdf');
   });
 
   it('handles multiple attachments', async () => {
@@ -108,9 +101,9 @@ describe('createMediaHandler', () => {
     await handler(msg);
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('a.jpg');
-    expect(inputText).toContain('b.png');
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.text).toContain('a.jpg');
+    expect(ctx.text).toContain('b.png');
   });
 
   it('uses caption fallback when no content', async () => {
@@ -119,29 +112,19 @@ describe('createMediaHandler', () => {
     addAttachment(msg, 'file.bin', 'https://cdn.discord.com/file.bin');
     await handler(msg);
 
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('User sent a file');
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.text).toContain('User sent a file');
   });
 
-  it('stops typing after successful response', async () => {
-    const handler = createMediaHandler();
-    const msg = makeMessage();
-    addAttachment(msg, 'x.txt', 'https://cdn.discord.com/x.txt');
-    await handler(msg);
-
-    expect(mockStop).toHaveBeenCalled();
-    expect(sendParsedResponse).toHaveBeenCalled();
-  });
-
-  it('stops typing and replies with error on failure', async () => {
-    mockCallEnConvo.mockRejectedValueOnce(new Error('API down'));
+  it('replies with download error on fetch failure', async () => {
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(new Error('Network error'));
     const handler = createMediaHandler();
     const msg = makeMessage();
     addAttachment(msg, 'y.txt', 'https://cdn.discord.com/y.txt');
     await handler(msg);
 
-    expect(mockStop).toHaveBeenCalled();
-    expect(msg.reply).toHaveBeenCalledWith('Failed to process the attachment.');
+    expect(msg.reply).toHaveBeenCalledWith('Failed to download the attachment.');
+    expect(mockHandleMessage).not.toHaveBeenCalled();
   });
 
   it('defaults agentPath to chat_with_ai/chat', async () => {
@@ -150,24 +133,30 @@ describe('createMediaHandler', () => {
     addAttachment(msg, 'z.txt', 'https://cdn.discord.com/z.txt');
     await handler(msg);
 
-    expect(mockCallEnConvo).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      'chat_with_ai/chat',
-      expect.anything(),
-    );
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.agentPath).toBe('chat_with_ai/chat');
   });
 
-  it('parses response and sends it', async () => {
+  it('passes apiOptions from global config', async () => {
     const handler = createMediaHandler();
     const msg = makeMessage();
     addAttachment(msg, 'img.png', 'https://cdn.discord.com/img.png');
     await handler(msg);
 
-    expect(mockParseResponse).toHaveBeenCalledWith('AI response text');
-    expect(sendParsedResponse).toHaveBeenCalledWith(
-      expect.anything(),
-      { text: 'parsed', filePaths: [] },
-    );
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.apiOptions).toEqual({
+      url: 'http://localhost:54535',
+      timeoutMs: 30000,
+    });
+  });
+
+  it('passes roster context to handleMessage', async () => {
+    const handler = createMediaHandler();
+    const msg = makeMessage();
+    addAttachment(msg, 'x.txt', 'https://cdn.discord.com/x.txt');
+    await handler(msg);
+
+    const roster = mockHandleMessage.mock.calls[0][2];
+    expect(roster).toEqual({ rosterIds: [], handleMap: {}, members: [] });
   });
 });

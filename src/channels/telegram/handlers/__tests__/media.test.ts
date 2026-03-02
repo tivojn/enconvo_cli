@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockCallEnConvo, mockParseResponse, mockStop } = vi.hoisted(() => ({
-  mockCallEnConvo: vi.fn().mockResolvedValue('AI photo response'),
-  mockParseResponse: vi.fn().mockReturnValue({ text: 'parsed', filePaths: [] }),
-  mockStop: vi.fn(),
+const { mockHandleMessage } = vi.hoisted(() => ({
+  mockHandleMessage: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('fs', async () => {
@@ -17,15 +15,8 @@ vi.mock('../../../../services/session-manager', () => ({
 }));
 
 vi.mock('../../../../services/handler-core', () => ({
-  sendParsedResponse: vi.fn(),
-}));
-
-vi.mock('../../../../services/enconvo-client', () => ({
-  callEnConvo: (...args: unknown[]) => mockCallEnConvo(...args),
-}));
-
-vi.mock('../../../../services/response-parser', () => ({
-  parseResponse: (...args: unknown[]) => mockParseResponse(...args),
+  handleMessage: (...args: unknown[]) => mockHandleMessage(...args),
+  buildRosterContext: vi.fn().mockReturnValue({ rosterIds: [], handleMap: {}, members: [] }),
 }));
 
 vi.mock('../../utils/telegram-io', () => ({
@@ -33,7 +24,7 @@ vi.mock('../../utils/telegram-io', () => ({
     maxMessageLength: 4096,
     sendText: vi.fn(),
     sendFile: vi.fn(),
-    startTyping: vi.fn().mockReturnValue({ stop: mockStop }),
+    startTyping: vi.fn().mockReturnValue({ stop: vi.fn() }),
   }),
 }));
 
@@ -42,7 +33,6 @@ vi.mock('../../../../utils/media-dir', () => ({
 }));
 
 import { createPhotoHandler, createDocumentHandler } from '../media';
-import { sendParsedResponse } from '../../../../services/handler-core';
 
 function makeCtx(overrides: Record<string, unknown> = {}): any {
   return {
@@ -75,24 +65,28 @@ describe('createPhotoHandler', () => {
     } as Response);
   });
 
-  it('downloads largest photo and calls callEnConvo', async () => {
+  it('downloads largest photo and calls handleMessage', async () => {
     const handler = createPhotoHandler('custom_bot/abc');
     await handler(makeCtx());
-    // Should use the last (largest) photo
-    expect(makeCtx().api.getFile).not.toHaveBeenCalled(); // different instance
-    expect(mockCallEnConvo).toHaveBeenCalledWith(
-      expect.stringContaining('Check this out'),
-      'tg-123',
-      'custom_bot/abc',
+
+    expect(mockHandleMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        text: expect.stringContaining('Check this out'),
+        agentPath: 'custom_bot/abc',
+        channel: 'telegram',
+        chatId: '123',
+      }),
+      expect.anything(),
     );
   });
 
   it('includes image path ref in input text', async () => {
     const handler = createPhotoHandler();
     await handler(makeCtx());
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('[Attached image:');
-    expect(inputText).toContain('.jpg');
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.text).toContain('[Attached image:');
+    expect(ctx.text).toContain('.jpg');
   });
 
   it('uses caption fallback when no caption', async () => {
@@ -100,14 +94,14 @@ describe('createPhotoHandler', () => {
     const ctx = makeCtx();
     ctx.message.caption = undefined;
     await handler(ctx);
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('User sent a photo');
+    const handlerCtx = mockHandleMessage.mock.calls[0][1];
+    expect(handlerCtx.text).toContain('User sent a photo');
   });
 
   it('skips when no chatId', async () => {
     const handler = createPhotoHandler();
     await handler(makeCtx({ chat: undefined }));
-    expect(mockCallEnConvo).not.toHaveBeenCalled();
+    expect(mockHandleMessage).not.toHaveBeenCalled();
   });
 
   it('skips when no photos', async () => {
@@ -115,23 +109,23 @@ describe('createPhotoHandler', () => {
     const ctx = makeCtx();
     ctx.message.photo = [];
     await handler(ctx);
-    expect(mockCallEnConvo).not.toHaveBeenCalled();
+    expect(mockHandleMessage).not.toHaveBeenCalled();
   });
 
-  it('stops typing and sends parsed response on success', async () => {
-    const handler = createPhotoHandler();
-    await handler(makeCtx());
-    expect(mockStop).toHaveBeenCalled();
-    expect(sendParsedResponse).toHaveBeenCalled();
-  });
-
-  it('stops typing and replies with error on failure', async () => {
-    mockCallEnConvo.mockRejectedValueOnce(new Error('API down'));
+  it('replies with download error on fetch failure', async () => {
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(new Error('Network error'));
     const handler = createPhotoHandler();
     const ctx = makeCtx();
     await handler(ctx);
-    expect(mockStop).toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Failed to process the photo.');
+    expect(ctx.reply).toHaveBeenCalledWith('Failed to download the photo.');
+    expect(mockHandleMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes roster context to handleMessage', async () => {
+    const handler = createPhotoHandler();
+    await handler(makeCtx());
+    const roster = mockHandleMessage.mock.calls[0][2];
+    expect(roster).toEqual({ rosterIds: [], handleMap: {}, members: [] });
   });
 });
 
@@ -163,22 +157,22 @@ describe('createDocumentHandler', () => {
     };
   }
 
-  it('downloads document and calls callEnConvo', async () => {
+  it('downloads document and calls handleMessage', async () => {
     const handler = createDocumentHandler('custom_bot/xyz');
     await handler(makeDocCtx());
-    expect(mockCallEnConvo).toHaveBeenCalledWith(
-      expect.stringContaining('Here is a PDF'),
-      expect.anything(),
-      'custom_bot/xyz',
-    );
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.text).toContain('Here is a PDF');
+    expect(ctx.agentPath).toBe('custom_bot/xyz');
+    expect(ctx.channel).toBe('telegram');
+    expect(ctx.chatId).toBe('456');
   });
 
   it('includes file path ref in input text', async () => {
     const handler = createDocumentHandler();
     await handler(makeDocCtx());
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('[Attached file:');
-    expect(inputText).toContain('.pdf');
+    const ctx = mockHandleMessage.mock.calls[0][1];
+    expect(ctx.text).toContain('[Attached file:');
+    expect(ctx.text).toContain('.pdf');
   });
 
   it('uses caption fallback when no caption', async () => {
@@ -186,14 +180,14 @@ describe('createDocumentHandler', () => {
     const ctx = makeDocCtx();
     ctx.message.caption = undefined;
     await handler(ctx);
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('User sent a document');
+    const handlerCtx = mockHandleMessage.mock.calls[0][1];
+    expect(handlerCtx.text).toContain('User sent a document');
   });
 
   it('skips when no chatId', async () => {
     const handler = createDocumentHandler();
     await handler(makeDocCtx({ chat: undefined }));
-    expect(mockCallEnConvo).not.toHaveBeenCalled();
+    expect(mockHandleMessage).not.toHaveBeenCalled();
   });
 
   it('skips when no document', async () => {
@@ -201,16 +195,16 @@ describe('createDocumentHandler', () => {
     const ctx = makeDocCtx();
     ctx.message.document = null;
     await handler(ctx);
-    expect(mockCallEnConvo).not.toHaveBeenCalled();
+    expect(mockHandleMessage).not.toHaveBeenCalled();
   });
 
-  it('stops typing and replies with error on failure', async () => {
-    mockCallEnConvo.mockRejectedValueOnce(new Error('timeout'));
+  it('replies with download error on fetch failure', async () => {
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(new Error('Disk full'));
     const handler = createDocumentHandler();
     const ctx = makeDocCtx();
     await handler(ctx);
-    expect(mockStop).toHaveBeenCalled();
-    expect(ctx.reply).toHaveBeenCalledWith('Failed to process the document.');
+    expect(ctx.reply).toHaveBeenCalledWith('Failed to download the document.');
+    expect(mockHandleMessage).not.toHaveBeenCalled();
   });
 
   it('uses .bin extension when file_name is missing', async () => {
@@ -218,9 +212,8 @@ describe('createDocumentHandler', () => {
     const ctx = makeDocCtx();
     ctx.message.document = { file_id: 'doc-2', file_name: undefined };
     await handler(ctx);
-    expect(mockCallEnConvo).toHaveBeenCalled();
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('.bin');
+    const handlerCtx = mockHandleMessage.mock.calls[0][1];
+    expect(handlerCtx.text).toContain('.bin');
   });
 
   it('uses .bin extension when file has no extension', async () => {
@@ -228,7 +221,7 @@ describe('createDocumentHandler', () => {
     const ctx = makeDocCtx();
     ctx.message.document = { file_id: 'doc-3', file_name: 'Makefile' };
     await handler(ctx);
-    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('.bin');
+    const handlerCtx = mockHandleMessage.mock.calls[0][1];
+    expect(handlerCtx.text).toContain('.bin');
   });
 });

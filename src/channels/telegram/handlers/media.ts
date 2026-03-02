@@ -1,10 +1,8 @@
 import { Context } from 'grammy';
 import * as fs from 'fs';
 import * as path from 'path';
-import { callEnConvo } from '../../../services/enconvo-client';
-import { parseResponse } from '../../../services/response-parser';
 import { getSessionId, getAgent } from '../../../services/session-manager';
-import { sendParsedResponse } from '../../../services/handler-core';
+import { handleMessage, buildRosterContext } from '../../../services/handler-core';
 import { createTelegramIO } from '../utils/telegram-io';
 import { ensureMediaDir } from '../../../utils/media-dir';
 
@@ -22,6 +20,8 @@ async function downloadFile(ctx: Context, fileId: string, extension: string): Pr
 }
 
 export function createPhotoHandler(pinnedAgentPath?: string, instanceId?: string) {
+  const roster = buildRosterContext(instanceId);
+
   return async function handlePhoto(ctx: Context): Promise<void> {
     const chatId = ctx.chat?.id;
     const photos = ctx.message?.photo;
@@ -29,29 +29,35 @@ export function createPhotoHandler(pinnedAgentPath?: string, instanceId?: string
 
     const photo = photos[photos.length - 1];
     const caption = ctx.message?.caption ?? 'User sent a photo';
-    const io = createTelegramIO(ctx);
-    const typing = io.startTyping();
 
+    let localPath: string;
     try {
-      const localPath = await downloadFile(ctx, photo.file_id, '.jpg');
-      const inputText = `${caption}\n\n[Attached image: ${localPath}]`;
-      const sessionId = getSessionId(chatId, instanceId);
-      const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
-
-      const response = await callEnConvo(inputText, sessionId, agentPath);
-      typing.stop();
-
-      const parsed = parseResponse(response);
-      await sendParsedResponse(io, parsed);
+      localPath = await downloadFile(ctx, photo.file_id, '.jpg');
     } catch (err) {
-      typing.stop();
-      console.error('Error handling photo:', err);
-      await ctx.reply('Failed to process the photo.');
+      console.error('Error downloading photo:', err);
+      await ctx.reply('Failed to download the photo.');
+      return;
     }
+
+    const inputText = `${caption}\n\n[Attached image: ${localPath}]`;
+    const sessionId = getSessionId(chatId, instanceId);
+    const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
+    const io = createTelegramIO(ctx);
+
+    await handleMessage(io, {
+      text: inputText,
+      sessionId,
+      agentPath,
+      channel: 'telegram',
+      chatId: String(chatId),
+      instanceId,
+    }, roster);
   };
 }
 
 export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: string) {
+  const roster = buildRosterContext(instanceId);
+
   return async function handleDocument(ctx: Context): Promise<void> {
     const chatId = ctx.chat?.id;
     const doc = ctx.message?.document;
@@ -59,25 +65,29 @@ export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: str
 
     const caption = ctx.message?.caption ?? 'User sent a document';
     const ext = doc.file_name ? path.extname(doc.file_name) || '.bin' : '.bin';
-    const io = createTelegramIO(ctx);
-    const typing = io.startTyping();
 
+    let localPath: string;
     try {
-      const localPath = await downloadFile(ctx, doc.file_id, ext);
-      const inputText = `${caption}\n\n[Attached file: ${localPath}]`;
-      const sessionId = getSessionId(chatId, instanceId);
-      const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
-
-      const response = await callEnConvo(inputText, sessionId, agentPath);
-      typing.stop();
-
-      const parsed = parseResponse(response);
-      await sendParsedResponse(io, parsed);
+      localPath = await downloadFile(ctx, doc.file_id, ext);
     } catch (err) {
-      typing.stop();
-      console.error('Error handling document:', err);
-      await ctx.reply('Failed to process the document.');
+      console.error('Error downloading document:', err);
+      await ctx.reply('Failed to download the document.');
+      return;
     }
+
+    const inputText = `${caption}\n\n[Attached file: ${localPath}]`;
+    const sessionId = getSessionId(chatId, instanceId);
+    const agentPath = pinnedAgentPath ?? getAgent(chatId).path;
+    const io = createTelegramIO(ctx);
+
+    await handleMessage(io, {
+      text: inputText,
+      sessionId,
+      agentPath,
+      channel: 'telegram',
+      chatId: String(chatId),
+      instanceId,
+    }, roster);
   };
 }
 

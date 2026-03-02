@@ -1,10 +1,8 @@
 import { Message } from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { callEnConvo } from '../../../services/enconvo-client';
-import { parseResponse } from '../../../services/response-parser';
 import { loadGlobalConfig } from '../../../config/store';
-import { sendParsedResponse } from '../../../services/handler-core';
+import { handleMessage, buildRosterContext } from '../../../services/handler-core';
 import { createDiscordIO } from '../utils/file-sender';
 import { getSessionId } from './commands';
 import { ensureMediaDir } from '../../../utils/media-dir';
@@ -19,40 +17,45 @@ async function downloadAttachment(url: string, filename: string): Promise<string
 }
 
 export function createMediaHandler(agentPath?: string, instanceId?: string) {
+  const roster = buildRosterContext(instanceId);
+
   return async function handleMedia(message: Message): Promise<void> {
     const channelId = message.channel.id;
     const caption = message.content || 'User sent a file';
-    const io = createDiscordIO(message);
-    const typing = io.startTyping();
 
+    const localPaths: string[] = [];
     try {
-      const localPaths: string[] = [];
       for (const attachment of message.attachments.values()) {
         const filename = attachment.name ?? 'file.bin';
         const localPath = await downloadAttachment(attachment.url, filename);
         localPaths.push(localPath);
       }
+    } catch (err) {
+      console.error('Error downloading attachment:', err);
+      await message.reply('Failed to download the attachment.');
+      return;
+    }
 
-      const attachmentRefs = localPaths
-        .map(p => `[Attached file: ${p}]`)
-        .join('\n');
-      const inputText = `${caption}\n\n${attachmentRefs}`;
+    const attachmentRefs = localPaths
+      .map(p => `[Attached file: ${p}]`)
+      .join('\n');
+    const inputText = `${caption}\n\n${attachmentRefs}`;
 
-      const sessionId = getSessionId(channelId, instanceId);
-      const globalConfig = loadGlobalConfig();
+    const sessionId = getSessionId(channelId, instanceId);
+    const globalConfig = loadGlobalConfig();
+    const io = createDiscordIO(message);
 
-      const response = await callEnConvo(inputText, sessionId, agentPath ?? 'chat_with_ai/chat', {
+    await handleMessage(io, {
+      text: inputText,
+      sessionId,
+      agentPath: agentPath ?? 'chat_with_ai/chat',
+      channel: 'discord',
+      chatId: channelId,
+      instanceId,
+      apiOptions: {
         url: globalConfig.enconvo.url,
         timeoutMs: globalConfig.enconvo.timeoutMs,
-      });
-      typing.stop();
-
-      const parsed = parseResponse(response);
-      await sendParsedResponse(io, parsed);
-    } catch (err) {
-      typing.stop();
-      console.error('Error handling media:', err);
-      await message.reply('Failed to process the attachment.');
-    }
+      },
+    }, roster);
   };
 }
