@@ -58,7 +58,7 @@ export function createDocumentHandler(pinnedAgentPath?: string, instanceId?: str
     if (!chatId || !doc) return;
 
     const caption = ctx.message?.caption ?? 'User sent a document';
-    const ext = path.extname(doc.file_name ?? '.bin');
+    const ext = doc.file_name ? path.extname(doc.file_name) || '.bin' : '.bin';
     const io = createTelegramIO(ctx);
     const typing = io.startTyping();
 

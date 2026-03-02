@@ -213,15 +213,22 @@ describe('createDocumentHandler', () => {
     expect(ctx.reply).toHaveBeenCalledWith('Failed to process the document.');
   });
 
-  it('handles missing file_name gracefully', async () => {
-    // path.extname('.bin') returns '' (dot-prefixed names have no extension)
-    // so the fallback produces an extensionless path — this is correct behavior
+  it('uses .bin extension when file_name is missing', async () => {
     const handler = createDocumentHandler();
     const ctx = makeDocCtx();
     ctx.message.document = { file_id: 'doc-2', file_name: undefined };
     await handler(ctx);
     expect(mockCallEnConvo).toHaveBeenCalled();
     const inputText = mockCallEnConvo.mock.calls[0][0] as string;
-    expect(inputText).toContain('[Attached file:');
+    expect(inputText).toContain('.bin');
+  });
+
+  it('uses .bin extension when file has no extension', async () => {
+    const handler = createDocumentHandler();
+    const ctx = makeDocCtx();
+    ctx.message.document = { file_id: 'doc-3', file_name: 'Makefile' };
+    await handler(ctx);
+    const inputText = mockCallEnConvo.mock.calls[0][0] as string;
+    expect(inputText).toContain('.bin');
   });
 });
