@@ -1,7 +1,6 @@
 import { Command } from 'commander';
-import { addAgent } from '../../config/agent-store';
+import { addAgent, loadAgentsRoster } from '../../config/agent-store';
 import { createWorkspace } from '../../services/workspace';
-import { loadAgentsRoster } from '../../config/agent-store';
 import { getChannelInstance } from '../../config/store';
 import { outputError } from '../../utils/command-output';
 

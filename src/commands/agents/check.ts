@@ -3,8 +3,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { Command } from 'commander';
 import { loadAgentsRoster, AgentMember } from '../../config/agent-store';
-import { loadGlobalConfig, saveGlobalConfig, EnConvoAppInfo } from '../../config/store';
-import { getChannelInstance } from '../../config/store';
+import { loadGlobalConfig, saveGlobalConfig, EnConvoAppInfo, getChannelInstance } from '../../config/store';
 import {
   ENCONVO_PREFERENCES_DIR,
   ENCONVO_COMMANDS_DIR,

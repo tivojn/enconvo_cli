@@ -1,9 +1,8 @@
 import { Command } from 'commander';
 import * as crypto from 'crypto';
-import { getChannelInstance, resolveChatId } from '../../config/store';
+import { getChannelInstance, resolveChatId, loadGlobalConfig } from '../../config/store';
 import { callEnConvo } from '../../services/enconvo-client';
 import { parseResponse } from '../../services/response-parser';
-import { loadGlobalConfig } from '../../config/store';
 import { deliverTelegram, deliverDiscord } from '../../services/channel-deliver';
 import { outputError } from '../../utils/command-output';
 
