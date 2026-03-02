@@ -3,7 +3,7 @@
  * Calls `sendFn` repeatedly at `intervalMs` until stopped.
  */
 export function createTypingIndicator(
-  sendFn: () => Promise<void>,
+  sendFn: () => Promise<unknown>,
   intervalMs: number,
 ): { stop: () => void } {
   let running = true;

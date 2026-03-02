@@ -392,3 +392,57 @@
 - **Notes:**
   - Exported hasKnownExtension, extractAbsolutePaths, extractDeliverableFiles
   - 15 tests: image/doc/media exts, case insensitivity, path extraction, deliverable filtering
+
+## [2026-03-02 08:25] Self-Evolve Round 44: Extract channel-deliver service
+- **Status:** success
+- **Tests:** 335/335 (33 suites, unchanged)
+- **Commit:** 006283f
+- **Notes:** Extracted deliverTelegram/deliverDiscord from 2 command files to shared service. Net -16 LOC.
+
+## [2026-03-02 08:27] Self-Evolve Round 45: Extract mention stripping to shared utility
+- **Status:** success
+- **Tests:** 335 → 346/346 (34 suites)
+- **Commit:** 2bf3d4f
+- **Notes:** Created utils/mention.ts with stripTelegramMention/stripDiscordMention + 11 tests.
+
+## [2026-03-02 08:30] Self-Evolve Round 46: Extract shared typing indicator factory
+- **Status:** success
+- **Tests:** 346 → 351/351 (35 suites)
+- **Commit:** 9bce49f
+- **Notes:** Created utils/typing-indicator.ts with createTypingIndicator(sendFn, intervalMs). Both channel-specific wrappers reduced to one-liners. 5 tests.
+
+## [2026-03-02 08:30] Self-Evolve Round 47: Remove redundant message-splitter wrappers
+- **Status:** success
+- **Tests:** 351/351 (35 suites, unchanged)
+- **Commit:** 143b583
+- **Notes:** Deleted telegram/utils/message-splitter.ts and discord/utils/message-splitter.ts. Updated channel-deliver.ts to import directly from shared utils.
+
+## [2026-03-02 08:33] Self-Evolve Round 48: handler-core buildRosterContext tests + edge cases
+- **Status:** success
+- **Tests:** 351 → 360/360 (35 suites)
+- **Commit:** 5f99fb4
+- **Notes:** 9 new tests: buildRosterContext (7), sendParsedResponse edge cases (2). Fixed ESM module mocking for fs.
+
+## [2026-03-02 08:34] Self-Evolve Round 49: channel-deliver test suite
+- **Status:** success
+- **Tests:** 360 → 373/373 (36 suites)
+- **Commit:** 1eea94d
+- **Notes:** 13 tests covering deliverTelegram (7) and deliverDiscord (6). Mocked grammy Bot class and global fetch.
+
+## [2026-03-02 08:35] Self-Evolve Round 50: Adapter tests + bot.ts dedup
+- **Status:** success
+- **Tests:** 373 → 399/399 (38 suites)
+- **Commit:** 721eba4
+- **Notes:** 13 tests each for TelegramAdapter and DiscordAdapter (info, capabilities, logPaths, serviceLabel, status, resolve, validateCredentials, start). Extracted unknownCommandHandler in telegram/bot.ts.
+
+## [2026-03-02 08:36] Self-Evolve Round 51: Shared adapter helpers
+- **Status:** success
+- **Tests:** 399 → 408/408 (39 suites)
+- **Commit:** 48e2ed5
+- **Notes:** Created channels/shared/adapter-helpers.ts with buildLogPaths, buildServiceLabel, formatUptime. 9 tests. Simplified both adapters.
+
+## [2026-03-02 08:37] Self-Evolve Round 52: Discord commands session tests
+- **Status:** success
+- **Tests:** 408 → 415/415 (40 suites)
+- **Commit:** 2c18627
+- **Notes:** 7 tests for getSessionId and resetSession — namespacing, override, isolation, uniqueness.

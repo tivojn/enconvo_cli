@@ -76,7 +76,7 @@ describe('TelegramAdapter', () => {
       const adapter = new TelegramAdapter();
       adapter.instanceName = 'mavis';
       const status = await adapter.getStatus();
-      expect(status.details.instance).toBe('mavis');
+      expect(status.details?.instance).toBe('mavis');
     });
   });
 
