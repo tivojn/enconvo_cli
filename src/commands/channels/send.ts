@@ -7,6 +7,7 @@ import { callEnConvo } from '../../services/enconvo-client';
 import { parseResponse, ParsedResponse } from '../../services/response-parser';
 import { loadGlobalConfig } from '../../config/store';
 import { isImageFile } from '../../utils/file-types';
+import { outputError } from '../../utils/command-output';
 
 async function deliverTelegram(token: string, chatId: string, parsed: ParsedResponse): Promise<void> {
   const bot = new Bot(token);
@@ -159,12 +160,4 @@ export function registerSend(parent: Command): void {
         process.exit(1);
       }
     });
-}
-
-function outputError(opts: { json?: boolean }, msg: string): void {
-  if (opts.json) {
-    console.log(JSON.stringify({ error: msg }));
-  } else {
-    console.error(`Error: ${msg}`);
-  }
 }

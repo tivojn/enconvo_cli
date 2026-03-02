@@ -6,6 +6,7 @@ import { getChannelInstance, loadGlobalConfig, resolveChatId } from '../../confi
 import { callEnConvo } from '../../services/enconvo-client';
 import { parseResponse } from '../../services/response-parser';
 import { TEAM_KB_DIR } from '../../config/paths';
+import { outputError } from '../../utils/command-output';
 
 const REFRESH_MESSAGE = `Team files updated. Re-read all workspace files and team KB now: IDENTITY.md, SOUL.md, AGENTS.md, and ${TEAM_KB_DIR}/. Acknowledge briefly.`;
 const SILENT_REFRESH_MESSAGE = `Re-read all workspace files and team KB now: IDENTITY.md, SOUL.md, AGENTS.md, and ${TEAM_KB_DIR}/. Do not announce or summarize what you read. Just confirm with "OK".`;
@@ -114,12 +115,4 @@ export function registerRefresh(parent: Command): void {
         console.log(`\nRefreshed ${refreshed}/${targets.length} agents.`);
       }
     });
-}
-
-function outputError(opts: { json?: boolean }, msg: string): void {
-  if (opts.json) {
-    console.log(JSON.stringify({ error: msg }));
-  } else {
-    console.error(`Error: ${msg}`);
-  }
 }

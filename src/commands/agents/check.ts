@@ -11,6 +11,7 @@ import {
   ENCONVO_APP_PLIST,
   TEAM_KB_DIR,
 } from '../../config/paths';
+import { outputError } from '../../utils/command-output';
 
 interface CheckResult {
   label: string;
@@ -295,12 +296,4 @@ export function registerCheck(parent: Command): void {
       const suffix = parts.length > 0 ? ` (${parts.join(', ')})` : '';
       console.log(`All checks passed: ${passed}/${allChecks.length}${suffix}`);
     });
-}
-
-function outputError(opts: { json?: boolean }, msg: string): void {
-  if (opts.json) {
-    console.log(JSON.stringify({ error: msg }));
-  } else {
-    console.error(`Error: ${msg}`);
-  }
 }

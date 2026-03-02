@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createAdapterInstance } from '../../channels/registry';
 import { getChannelInstance } from '../../config/store';
 import { execSync } from 'child_process';
+import { outputError } from '../../utils/command-output';
 
 export function registerLogin(parent: Command): void {
   parent
@@ -68,12 +69,4 @@ export function registerLogin(parent: Command): void {
         }
       }
     });
-}
-
-function outputError(opts: { json?: boolean }, msg: string): void {
-  if (opts.json) {
-    console.log(JSON.stringify({ error: msg }));
-  } else {
-    console.error(msg);
-  }
 }
