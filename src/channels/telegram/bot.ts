@@ -1,9 +1,18 @@
-import { Bot } from 'grammy';
+import { Bot, Context } from 'grammy';
 import { authMiddleware, createAuthMiddleware } from './middleware/auth';
 import { createMentionGate } from './middleware/mention-gate';
 import { registerCommands } from './handlers/commands';
 import { handleTextMessage, createTextMessageHandler } from './handlers/message';
 import { handlePhoto, handleDocument, createPhotoHandler, createDocumentHandler } from './handlers/media';
+
+/** Reply with "Unknown command" for unrecognized /slash messages. */
+async function unknownCommandHandler(ctx: Context): Promise<void> {
+  const text = ctx.message?.text ?? '';
+  await ctx.reply(
+    `Unknown command: ${text.split(/\s+/)[0]}\n` +
+    'Type /help to see available commands.'
+  );
+}
 
 /**
  * Create a Grammy bot instance.
@@ -28,12 +37,7 @@ export function createBot(token?: string, agentPath?: string, allowedUserIds?: n
 
     bot.on('message:text').filter(
       (ctx) => /^\/\w+/.test(ctx.message.text),
-      async (ctx) => {
-        await ctx.reply(
-          `Unknown command: ${ctx.message.text.split(/\s+/)[0]}\n` +
-          'Type /help to see available commands.'
-        );
-      },
+      unknownCommandHandler,
     );
 
     bot.on('message:photo', createPhotoHandler(agentPath, instanceId));
@@ -46,12 +50,7 @@ export function createBot(token?: string, agentPath?: string, allowedUserIds?: n
 
     bot.on('message:text').filter(
       (ctx) => /^\/\w+/.test(ctx.message.text),
-      async (ctx) => {
-        await ctx.reply(
-          `Unknown command: ${ctx.message.text.split(/\s+/)[0]}\n` +
-          'Type /help to see available commands.'
-        );
-      },
+      unknownCommandHandler,
     );
 
     bot.on('message:photo', handlePhoto);
