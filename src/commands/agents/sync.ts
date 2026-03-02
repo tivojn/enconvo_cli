@@ -201,7 +201,7 @@ export function registerSync(parent: Command): void {
         // Debounce to avoid multiple rapid syncs on editor save
         let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-        fs.watch(TEAM_KB_DIR, { persistent: true }, (eventType, filename) => {
+        fs.watch(TEAM_KB_DIR, { persistent: true }, (_eventType, filename) => {
           // Ignore non-markdown and hidden files
           if (!filename || !filename.endsWith('.md') || filename.startsWith('.')) return;
 

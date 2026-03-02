@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import * as fs from 'fs';
-import { loadGlobalConfig, listChannelInstances, GlobalConfig } from '../config/store';
+import { loadGlobalConfig, GlobalConfig } from '../config/store';
 import { loadAgentsRoster, AgentsRoster } from '../config/agent-store';
 import { ENCONVO_CLI_DIR, ENCONVO_CLI_CONFIG_PATH, AGENTS_CONFIG_PATH } from '../config/paths';
 

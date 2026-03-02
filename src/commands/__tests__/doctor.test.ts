@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectIssues } from '../doctor';
 import type { GlobalConfig } from '../../config/store';
-import type { AgentsRoster, AgentMember } from '../../config/agent-store';
+import type { AgentMember } from '../../config/agent-store';
 
 function makeConfig(overrides?: Partial<GlobalConfig>): GlobalConfig {
   return {

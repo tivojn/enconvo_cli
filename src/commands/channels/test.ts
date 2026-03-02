@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { getChannelInstance } from '../../config/store';
+import { outputError } from '../../utils/command-output';
 
 interface TestResult {
   channel: string;
@@ -10,7 +11,7 @@ interface TestResult {
   latencyMs?: number;
 }
 
-async function testTelegram(token: string): Promise<{ success: boolean; botUsername?: string; error?: string; latencyMs: number }> {
+export async function testTelegram(token: string): Promise<{ success: boolean; botUsername?: string; error?: string; latencyMs: number }> {
   const start = Date.now();
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
@@ -28,7 +29,7 @@ async function testTelegram(token: string): Promise<{ success: boolean; botUsern
   }
 }
 
-async function testDiscord(token: string): Promise<{ success: boolean; botUsername?: string; error?: string; latencyMs: number }> {
+export async function testDiscord(token: string): Promise<{ success: boolean; botUsername?: string; error?: string; latencyMs: number }> {
   const start = Date.now();
   try {
     const res = await fetch('https://discord.com/api/v10/users/@me', {
@@ -61,20 +62,12 @@ export function registerTest(parent: Command): void {
     .action(async (opts: { channel: string; name: string; json?: boolean }) => {
       const instance = getChannelInstance(opts.channel, opts.name);
       if (!instance) {
-        if (opts.json) {
-          console.log(JSON.stringify({ error: `Instance "${opts.name}" not found for channel "${opts.channel}"` }));
-        } else {
-          console.error(`Instance "${opts.name}" not found for channel "${opts.channel}".`);
-        }
+        outputError(opts, `Instance "${opts.name}" not found for channel "${opts.channel}"`);
         process.exit(1);
       }
 
       if (!instance.token) {
-        if (opts.json) {
-          console.log(JSON.stringify({ error: 'No token configured for this instance' }));
-        } else {
-          console.error('No token configured for this instance.');
-        }
+        outputError(opts, 'No token configured for this instance');
         process.exit(1);
       }
 
@@ -90,11 +83,7 @@ export function registerTest(parent: Command): void {
           probe = await testDiscord(instance.token);
           break;
         default:
-          if (opts.json) {
-            console.log(JSON.stringify({ error: `Channel "${opts.channel}" does not support test yet` }));
-          } else {
-            console.error(`Channel "${opts.channel}" does not support test yet.`);
-          }
+          outputError(opts, `Channel "${opts.channel}" does not support test yet`);
           process.exit(1);
           return; // for TypeScript flow
       }
