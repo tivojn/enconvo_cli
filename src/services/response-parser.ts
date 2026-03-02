@@ -58,8 +58,8 @@ const EXCLUDED_EXTENSIONS = new Set([
 
 export function hasKnownExtension(filePath: string): boolean {
   const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
-  // Any file with an extension is deliverable UNLESS it's a code/config file
-  return ext.length > 1 && !EXCLUDED_EXTENSIONS.has(ext);
+  // Must have an extension, must contain a letter (not .13, .14 etc), and not be code/config
+  return ext.length > 1 && /[a-z]/.test(ext) && !EXCLUDED_EXTENSIONS.has(ext);
 }
 
 /** Extract absolute file paths from any string */
