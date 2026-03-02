@@ -1,7 +1,6 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
-import * as os from 'os';
-import * as path from 'path';
 import { ChannelAdapter, ChannelInfo, ChannelCapabilities, ChannelStatusResult, ChannelResolveResult } from '../../types/channel';
+import { buildLogPaths, buildServiceLabel, formatUptime } from '../shared/adapter-helpers';
 
 export class DiscordAdapter implements ChannelAdapter {
   private client: Client | null = null;
@@ -53,11 +52,7 @@ export class DiscordAdapter implements ChannelAdapter {
     const details: Record<string, string> = {};
 
     if (running && this.startedAt) {
-      const uptimeMs = Date.now() - this.startedAt.getTime();
-      const secs = Math.floor(uptimeMs / 1000);
-      const mins = Math.floor(secs / 60);
-      const hrs = Math.floor(mins / 60);
-      details.uptime = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m ${secs % 60}s`;
+      details.uptime = formatUptime(this.startedAt);
     }
 
     if (this.instanceName) {
@@ -106,11 +101,7 @@ export class DiscordAdapter implements ChannelAdapter {
   }
 
   getLogPaths(): { stdout: string; stderr: string } {
-    const suffix = this.instanceName ?? 'adapter';
-    return {
-      stdout: path.join(os.homedir(), `Library/Logs/enconvo-discord-${suffix}.log`),
-      stderr: path.join(os.homedir(), `Library/Logs/enconvo-discord-${suffix}-error.log`),
-    };
+    return buildLogPaths('discord', this.instanceName);
   }
 
   async resolve(identifier: string, kind: string): Promise<ChannelResolveResult> {
@@ -141,7 +132,6 @@ export class DiscordAdapter implements ChannelAdapter {
   }
 
   getServiceLabel(): string {
-    const suffix = this.instanceName ?? 'adapter';
-    return `com.enconvo.discord-${suffix}`;
+    return buildServiceLabel('discord', this.instanceName);
   }
 }
