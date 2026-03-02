@@ -634,3 +634,24 @@
 - Test/source LOC ratio: ~117%
 - Production dependencies: 3 (commander, grammy, discord.js)
 - TypeScript: strict mode, clean compilation
+
+## [2026-03-02 14:30] Round 89-95: Hardening + E2E Verification + Dep Update
+- **Status:** success
+- **Changes:** 7 commits, ~60 insertions
+- **Tests:** 577 passing (was 571)
+- **Bugs fixed:** 3
+  - Self-delegation loop (agent mentioning itself triggers delegation)
+  - False positive delegation on informational @mentions (roster tables)
+  - Numeric-only extensions (.13, .14) passing file filter
+- **Improvements:**
+  - Robust thinking JSON stripping via brace-depth counting (edge case: nested braces)
+  - Better timeout error messages with --timeout hint
+  - Audio/video delivery tests (sendAudio, sendVideo)
+  - Grammy updated 1.40.1 → 1.41.0
+  - Stale plist path fixed, .playwright-mcp gitignored
+- **Live tests:** All 4 agents on both Telegram and Discord
+  - Multi-agent delegation: PASS (Vivienne gold + Elena selfie on Telegram)
+  - Thinking filter on Discord: PASS (haiku test clean)
+  - File delivery on Discord: PASS (selfie, no portrait leak)
+  - Error handling: PASS (timeout, bad instance, missing args)
+- **Skill updates:** "End response with work not words", "Stop and summarize" enforcement
