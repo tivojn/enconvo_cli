@@ -28,7 +28,12 @@ vi.mock('../../config/agent-store', () => ({
       },
       {
         id: 'elena', name: 'Elena', emoji: '✍️', role: 'Content',
-        bindings: { instanceName: 'elena', telegramBot: 'Elena_bot' },
+        bindings: {
+          instanceName: 'elena', telegramBot: 'Elena_bot',
+          channelBindings: [
+            { channel: 'discord', instanceName: 'elena-discord', botHandle: 'Elena#1234' },
+          ],
+        },
       },
       {
         id: 'timothy', name: 'Timothy', emoji: '💻', role: 'Dev',
@@ -279,11 +284,12 @@ describe('buildRosterContext', () => {
     expect(ctx.rosterIds).toEqual(['mavis', 'elena', 'timothy']);
   });
 
-  it('builds handleMap from telegramBot bindings', () => {
+  it('builds handleMap from telegramBot and channelBindings', () => {
     const ctx = buildRosterContext();
     expect(ctx.handleMap).toEqual({
       Mavis_bot: 'mavis',
       Elena_bot: 'elena',
+      'Elena#1234': 'elena',
     });
   });
 

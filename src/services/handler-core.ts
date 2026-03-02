@@ -56,8 +56,17 @@ export function buildRosterContext(instanceId?: string): RosterContext {
   const rosterIds = roster.members.map(m => m.id);
   const handleMap: Record<string, string> = {};
   for (const m of roster.members) {
+    // Legacy Telegram bot handle
     if (m.bindings.telegramBot) {
       handleMap[m.bindings.telegramBot] = m.id;
+    }
+    // Multi-channel bindings (Discord, etc.)
+    if (m.bindings.channelBindings) {
+      for (const binding of m.bindings.channelBindings) {
+        if (binding.botHandle) {
+          handleMap[binding.botHandle] = m.id;
+        }
+      }
     }
   }
   const currentAgent = instanceId
