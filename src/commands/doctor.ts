@@ -122,7 +122,7 @@ export function registerDoctorCommand(program: Command): void {
       let config: GlobalConfig | null = null;
       try {
         config = loadGlobalConfig();
-      } catch (e) {
+      } catch {
         // Will be handled via detectIssues
       }
 
