@@ -1364,5 +1364,64 @@ enconvo
 | `src/commands/channels/test.ts` | Bot token validation (Telegram getMe / Discord @me) |
 | `src/commands/agents/bind.ts` | Multi-channel agent binding |
 | `src/commands/agents/unbind.ts` | Remove channel binding |
+| `src/utils/typing-indicator.ts` | Shared typing indicator loop (dedup from Telegram/Discord) |
+| `src/channels/shared/adapter-helpers.ts` | Shared adapter helpers (buildLogPaths, buildServiceLabel, formatUptime) |
+| `src/commands/agents/check.ts` | Agent health-check with pure exported functions |
 | `eslint.config.mjs` | ESLint flat config with TypeScript |
 | `.self-evolve/openclaw-parity.md` | Full OpenClaw CLI gap analysis |
+
+---
+
+## Phase 13: Test Coverage & Architecture Hardening (Rounds 46-67)
+
+**Session date:** 2026-03-02
+
+### Summary
+Autonomous self-evolution focused on test coverage expansion, shared utility extraction, and bug fixes. Test count grew from 346 → 538 across 35 → 50 suites.
+
+### Key Achievements
+
+**Shared Utility Extraction:**
+- Extracted `createTypingIndicator(sendFn, intervalMs)` to `src/utils/typing-indicator.ts` — both Telegram (4s) and Discord (8s) typing loops now one-liners
+- Extracted `buildLogPaths`, `buildServiceLabel`, `formatUptime` to `src/channels/shared/adapter-helpers.ts`
+- Removed redundant message-splitter wrappers (Discord and Telegram both import from shared util directly)
+
+**Bug Fixes:**
+- Fixed `path.extname('.bin')` returning `""` not `".bin"` — documents without file_name or extension now correctly get `.bin` extension
+- Added channelBindings botHandles to handleMap for cross-channel delegation detection
+
+**Test Coverage (192 new tests):**
+| Suite | Tests | Key areas |
+|---|---|---|
+| handler-core | 21 | buildRosterContext, sendParsedResponse, handleMessage |
+| channel-deliver | 13 | deliverTelegram, deliverDiscord |
+| telegram adapter | 13 | info, capabilities, getLogPaths, getServiceLabel, getStatus |
+| discord adapter | 13 | same pattern as telegram |
+| adapter-helpers | 9 | buildLogPaths, buildServiceLabel, formatUptime |
+| discord commands | 19 | getSessionId, resetSession, handleCommand |
+| discord message | 9 | createTextMessageHandler |
+| discord media | 8 | createMediaHandler |
+| telegram message | 9 | createTextMessageHandler |
+| telegram media | 15 | createPhotoHandler, createDocumentHandler |
+| telegram-io | 6 | createTelegramIO (Markdown fallback, file routing) |
+| discord file-sender | 6 | sendFile, createDiscordIO |
+| telegram commands | 15 | registerCommands (pinned/legacy mode) |
+| telegram mention-gate | 10 | createMentionGate |
+| agents check | 19 | checkAgent, checkTeamKB, checkEnConvoVersion |
+| channels test | 11 | testTelegram, testDiscord |
+| typing-indicator | 5 | start, interval, stop, auto-stop on throw |
+| agent-store | +4 | derivePreferenceKey direct tests |
+
+**Architecture:**
+- Test/source LOC ratio: 105% (6732 test LOC / 6410 source LOC)
+- All handler factories tested (both channels)
+- All adapter methods tested (both channels)
+- All core services tested
+- All shared utilities tested
+- TypeScript strict mode: clean compilation
+
+### Testing Patterns Established
+1. **vi.hoisted()** for mock values referenced in vi.mock factories
+2. **Class-based mocks** for constructors (Grammy Bot, discord.js AttachmentBuilder)
+3. **vi.mock('fs') + vi.importActual** for ESM module mocking
+4. **Handler capture pattern** for testing Grammy bot.command() registrations
