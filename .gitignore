@@ -6,3 +6,4 @@ dist/
 .self-evolve/patterns.json
 .tokens
 .github/workflows/ci.yml
+.playwright-mcp/

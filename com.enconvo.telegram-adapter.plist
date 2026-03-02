@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/zanearcher/Downloads/vibe-coding/EnConvo_Channels/scripts/run.sh</string>
+        <string>/Users/zanearcher/Downloads/vibe-coding/enconvo_cli/scripts/run.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
