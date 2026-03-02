@@ -446,3 +446,75 @@
 - **Tests:** 408 → 415/415 (40 suites)
 - **Commit:** 2c18627
 - **Notes:** 7 tests for getSessionId and resetSession — namespacing, override, isolation, uniqueness.
+
+## [2026-03-02 08:47] Self-Evolve Round 53: TypeScript strict mode fixes
+- **Status:** success
+- **Tests:** 415/415 (40 suites)
+- **Commit:** 0baa670
+- **Notes:** Fixed 3 TS errors: optional chaining on adapter test details, widened typing-indicator Promise<void> → Promise<unknown>.
+
+## [2026-03-02 08:49] Self-Evolve Round 54: Telegram mention-gate tests
+- **Status:** success
+- **Tests:** 415 → 425/425 (41 suites)
+- **Commit:** bae5b1b
+- **Notes:** 10 tests for createMentionGate: private chat, bot commands, reply-to-bot, @mention, case-insensitive, text_mention, ignore patterns.
+
+## [2026-03-02 08:50] Self-Evolve Round 55: Export derivePreferenceKey + tests
+- **Status:** success
+- **Tests:** 425 → 428/428 (41 suites)
+- **Commit:** 32f5efe
+- **Notes:** Exported derivePreferenceKey, added 4 direct tests for slash→pipe conversion.
+
+## [2026-03-02 08:48] Self-Evolve Round 56: Discord handleCommand tests
+- **Status:** success
+- **Tests:** 428 → 440/440 (41 suites)
+- **Commit:** 987d0e4
+- **Notes:** 12 tests for handleCommand (!reset, !status, !help) — case insensitivity, health check, DM vs server, non-command passthrough.
+
+## [2026-03-02 08:49] Self-Evolve Round 57: Discord message handler tests
+- **Status:** success
+- **Tests:** 440 → 449/449 (42 suites)
+- **Commit:** db28478
+- **Notes:** 9 tests for createTextMessageHandler — mention stripping, bare-mention fallback, referenced message fetch, default agentPath.
+
+## [2026-03-02 08:50] Self-Evolve Round 58: Discord media handler tests
+- **Status:** success
+- **Tests:** 449 → 457/457 (43 suites)
+- **Commit:** 62d83b4
+- **Notes:** 8 tests for createMediaHandler — attachment download, file refs, caption fallback, typing lifecycle, error handling. Used vi.hoisted().
+
+## [2026-03-02 08:51] Self-Evolve Round 59: Telegram message handler tests
+- **Status:** success
+- **Tests:** 457 → 466/466 (44 suites)
+- **Commit:** 57b6a8f
+- **Notes:** 9 tests for createTextMessageHandler — mention stripping, bare-mention reply/nudge, chatId string conversion.
+
+## [2026-03-02 08:53] Self-Evolve Round 60: Telegram media handler tests
+- **Status:** success
+- **Tests:** 466 → 480/480 (45 suites)
+- **Commit:** ba20f8b
+- **Notes:** 14 tests for createPhotoHandler (7) + createDocumentHandler (7) — photo size selection, extension extraction, typing, errors.
+
+## [2026-03-02 08:54] Self-Evolve Round 61: Channel IO factory tests
+- **Status:** success
+- **Tests:** 480 → 492/492 (47 suites)
+- **Commit:** 919d242
+- **Notes:** 12 tests: createTelegramIO (Markdown fallback, image/doc routing) + createDiscordIO (sendFile target detection, sendText).
+
+## [2026-03-02 08:55] Self-Evolve Round 62: Telegram registerCommands tests
+- **Status:** success
+- **Tests:** 492 → 507/507 (48 suites)
+- **Commit:** a5e3c99
+- **Notes:** 15 tests for registerCommands — pinned vs legacy mode, /start, /help, /agent list/switch, /reset, /status. Handler capture pattern.
+
+## [2026-03-02 08:55] Self-Evolve Round 63: Fix file extension fallback bug
+- **Status:** success (bug fix + regression test)
+- **Tests:** 507 → 508/508 (48 suites)
+- **Commit:** e2b323c
+- **Notes:** path.extname('.bin') returns '' not '.bin'. Fixed: doc.file_name ? path.extname(doc.file_name) || '.bin' : '.bin'. Added 1 regression test.
+
+## [2026-03-02 08:57] Self-Evolve Round 64: Agents check pure function tests
+- **Status:** success
+- **Tests:** 508 → 527/527 (49 suites)
+- **Commit:** bc3f319
+- **Notes:** 19 tests for checkAgent, checkTeamKB, checkEnConvoVersion, checkApiReachable, STATUS_ICON. All exported pure functions fully covered.
