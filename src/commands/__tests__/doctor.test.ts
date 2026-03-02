@@ -219,4 +219,35 @@ describe('detectIssues', () => {
     });
     expect(issues.some(i => i.level === 'info' && i.message.includes('No agents roster found'))).toBe(true);
   });
+
+  it('reports missing EnConvo URL', () => {
+    const issues = detectIssues({
+      configDirExists: true, configFileExists: true, agentsFileExists: false,
+      config: makeConfig({ enconvo: { url: '', timeoutMs: 120000, agents: [], defaultAgent: '' } }),
+      roster: null,
+    });
+    expect(issues.some(i => i.level === 'error' && i.message.includes('URL not configured'))).toBe(true);
+  });
+
+  it('includes fix suggestion for missing config dir', () => {
+    const issues = detectIssues({
+      configDirExists: false, configFileExists: false, agentsFileExists: false,
+      config: null, roster: null,
+    });
+    const dirIssue = issues.find(i => i.message.includes('Config directory missing'));
+    expect(dirIssue?.fix).toContain('mkdir');
+  });
+
+  it('includes fix suggestion for missing workspace', () => {
+    const issues = detectIssues({
+      configDirExists: true, configFileExists: true, agentsFileExists: true,
+      config: makeConfig(),
+      roster: {
+        version: 1, team: 'T',
+        members: [makeMember('fix-ws', { isLead: true, workspacePath: '/tmp/nonexistent-fix-test-' + Date.now() })],
+      },
+    });
+    const wsIssue = issues.find(i => i.message.includes('workspace missing'));
+    expect(wsIssue?.fix).toContain('enconvo agents sync');
+  });
 });

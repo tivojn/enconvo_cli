@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { loadAgentsRoster } from '../../config/agent-store';
 import { loadGlobalConfig } from '../../config/store';
 import { callEnConvo } from '../../services/enconvo-client';
+import { parseResponse } from '../../services/response-parser';
 
 interface AgentTestResult {
   id: string;
@@ -61,23 +62,9 @@ export function registerTest(parent: Command): void {
           });
           const latencyMs = Date.now() - start;
 
-          // Extract response preview
-          let preview = '';
-          if (response.result) {
-            preview = response.result;
-          } else if (response.messages) {
-            for (const msg of response.messages) {
-              if (msg.role === 'assistant') {
-                for (const item of msg.content) {
-                  if (item.type === 'text' && item.text) {
-                    preview = item.text;
-                    break;
-                  }
-                }
-                if (preview) break;
-              }
-            }
-          }
+          // Reuse shared response parser for preview extraction
+          const parsed = parseResponse(response);
+          const preview = parsed.text;
 
           results.push({
             id: agent.id,
