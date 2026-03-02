@@ -76,9 +76,10 @@ export function registerSend(parent: Command): void {
         if (!deliver) throw new Error(`Channel "${channel}" does not support send yet.`);
         await deliver(parsed);
 
-        // Handle delegations — route to target agents and deliver their responses
+        // Handle delegations — route to target agents, skip self-mentions
         if (parsed.delegations.length > 0 && roster.currentAgent) {
           for (const delegation of parsed.delegations) {
+            if (delegation.targetAgentId === roster.currentAgent.id) continue;
             const enrichedDelegation = {
               ...delegation,
               message: `[Original question: ${opts.message}]\n\n${delegation.message}`,

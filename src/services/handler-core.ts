@@ -94,9 +94,10 @@ export async function handleMessage(
     const parsed = parseResponse(response, roster.rosterIds, roster.handleMap);
     await sendParsedResponse(io, parsed);
 
-    // Handle delegations
+    // Handle delegations (skip self-mentions)
     if (parsed.delegations.length > 0 && roster.currentAgent) {
       for (const delegation of parsed.delegations) {
+        if (delegation.targetAgentId === roster.currentAgent.id) continue;
         // Enrich delegation with original user message for context
         const enrichedDelegation = {
           ...delegation,
